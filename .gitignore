@@ -1,0 +1,12 @@
+node_modules/
+.env
+dist/
+.turbo/
+data/
+
+# Planning doc: not meant to ship with the public repo
+prd-ai-powered-portfolio.md
+
+# Real personal content synced from Notion (contains name, DOB, email, etc.);
+# regenerate locally with `pnpm sync:notion`
+knowledge/knowledge-base.md

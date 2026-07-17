@@ -1,0 +1,58 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 640px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+#messages {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 1rem;
+  height: 400px;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+}
+
+#messages .message {
+  margin: 0.5rem 0;
+}
+
+#messages .message::before {
+  content: attr(data-label) ": ";
+  font-weight: 600;
+}
+
+#messages .message :is(ul, ol) {
+  margin: 0.25rem 0;
+  padding-left: 1.5rem;
+}
+
+#messages .message code {
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.9em;
+}
+
+#messages .message p {
+  margin: 0;
+}
+
+.error {
+  color: #b00020;
+}
+
+form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+input {
+  flex: 1;
+  padding: 0.5rem;
+}
+
+button {
+  padding: 0.5rem 1rem;
+}
