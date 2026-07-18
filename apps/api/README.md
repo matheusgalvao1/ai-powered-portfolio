@@ -51,13 +51,8 @@ src/
   middleware/rateLimit.ts  Per-IP fixed-window limiter on POST /chat
   handlers/            Thin HTTP layer: Zod-validate the request, translate
                         service events to SSE via @portfolio/shared's formatSseEvent
-  services/chatService.ts   Actual chat logic (session/request ids, trimming
-                             conversation history, calling the agent, recording
-                             the turn) — knows nothing about HTTP
-  contextCompaction.ts Hard synchronous trim (safety cap for the current
-                        turn) plus a background LLM summarization call
-                        (quality compaction for the next turn), both gated
-                        on MAX_CONTEXT_TOKENS
+  services/chatService.ts   Actual chat logic (session/request ids, calling the
+                             agent, recording the turn) — knows nothing about HTTP
   agent.ts             Wraps the Bedrock Converse API (streaming), via @aws-sdk/client-bedrock-runtime
   prompt.ts            Builds the system prompt from prompts/system.md + the knowledge base
   session.ts           Session id generation
@@ -76,9 +71,4 @@ See the root `.env.example`. `BEDROCK_MODEL_ID` (default `zai.glm-5`), `BEDROCK_
 
 `API_KEY`, if set, requires every `POST /chat` request to send a matching `X-Api-Key` header — this is **not** user authentication (recruiters never sign in), just a deterrent against direct abuse of the endpoint beyond CORS. It's not a real secret once it ships in the web client's built bundle.
 
-`MAX_CONTEXT_TOKENS` (default `50000`) caps the estimated token size of conversation history, using a rough characters-per-token heuristic (no GLM-5 tokenizer dependency exists yet). Two things happen once a conversation crosses it, both in `contextCompaction.ts`:
-
-1. **Synchronous hard trim** — the actual cost/safety boundary. The current turn's answer is generated from a cheaply truncated view of the history, so no single request can be forced to arbitrarily large size.
-2. **Background LLM compaction** — runs concurrently with the answer generation (`Promise.all`, not awaited first), so it never adds latency to the response. A second (non-streamed) call asks the model to summarize the older portion of the conversation into a short synthetic message, which — together with the last few messages kept verbatim — becomes the conversation history for the *next* turn. Falls back to the plain hard trim if that call fails for any reason.
-
-The result of (2) is what comes back in the `complete` event's `conversation` field, so the client naturally adopts the compacted history for its next request — no separate client-side compaction needed. Note this means every over-threshold turn costs a second model call.
+Conversation history sent by the client is currently unbounded — there's no cap or compaction. See [issue #8](https://github.com/matheusgalvao1/ai-powered-portfolio/issues/8) for the planned design (LLM-only compaction, run after the response so it never delays or hangs a turn, using a separate summarizer call rather than the portfolio agent).
