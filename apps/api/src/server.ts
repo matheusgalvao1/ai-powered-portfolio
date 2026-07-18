@@ -8,7 +8,7 @@ import { createChatService } from "./services/chatService.js";
 import { healthHandler } from "./handlers/health.js";
 import { createChatHandler } from "./handlers/chat.js";
 import { corsMiddleware } from "./middleware/cors.js";
-import { modelConfig, serverConfig } from "./config/index.js";
+import { modelConfig, serverConfig } from "@portfolio/config";
 
 const apiDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRootDir = join(apiDir, "../..");

@@ -9,12 +9,17 @@
     "start:api": "pnpm --filter @portfolio/api dev",
     "start:web": "pnpm --filter @portfolio/web dev",
     "dev": "concurrently -n api,web -c blue,green \"pnpm start:api\" \"pnpm start:web\"",
-    "sync:notion": "node --env-file-if-exists=.env scripts/sync-notion.js"
+    "build": "pnpm --filter @portfolio/web build",
+    "typecheck": "pnpm -r typecheck && tsc --noEmit -p scripts/tsconfig.json",
+    "sync:notion": "tsx --env-file-if-exists=.env scripts/sync-notion.ts"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "@types/node": "^25.9.5",
+    "concurrently": "^9.1.0",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
   }
 }

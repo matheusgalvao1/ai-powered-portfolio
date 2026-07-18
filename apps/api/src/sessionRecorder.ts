@@ -2,12 +2,21 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 export class SessionRecorder {
-  constructor({ sessionsDir }) {
+  private sessionsDir: string;
+
+  constructor({ sessionsDir }: { sessionsDir: string }) {
     this.sessionsDir = sessionsDir;
     mkdirSync(sessionsDir, { recursive: true });
   }
 
-  recordTurn(sessionId, { requestId, message, answer }) {
+  recordTurn(
+    sessionId: string,
+    {
+      requestId,
+      message,
+      answer,
+    }: { requestId: string; message: string; answer: string },
+  ): void {
     const entry = {
       sessionId,
       requestId,

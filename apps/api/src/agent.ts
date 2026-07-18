@@ -1,7 +1,18 @@
 import OpenAI from "openai";
+import type { ConversationMessage } from "@portfolio/shared";
+
+type AgentOptions = {
+  systemPrompt: string;
+  model?: string;
+  client?: OpenAI;
+};
 
 export class Agent {
-  constructor({ systemPrompt, model, client } = {}) {
+  private systemPrompt: string;
+  private model: string | undefined;
+  private client: OpenAI;
+
+  constructor({ systemPrompt, model, client }: AgentOptions) {
     if (!systemPrompt) {
       throw new Error("Agent requires a systemPrompt");
     }
@@ -11,11 +22,15 @@ export class Agent {
     this.client = client ?? new OpenAI();
   }
 
-  async send(message, { conversation = [] } = {}, onToken = () => {}) {
+  async send(
+    message: string,
+    { conversation = [] }: { conversation?: ConversationMessage[] } = {},
+    onToken: (value: string) => void = () => {},
+  ): Promise<{ answer: string; conversation: ConversationMessage[] }> {
     const input =
       conversation.length === 0
         ? message
-        : [...conversation, { role: "user", content: message }];
+        : [...conversation, { role: "user" as const, content: message }];
 
     const stream = this.client.responses.stream({
       model: this.model,
@@ -31,7 +46,10 @@ export class Agent {
 
     const response = await stream.finalResponse();
     const answer = response.output_text;
-    const userMessage = { role: "user", content: message };
+    const userMessage: ConversationMessage = {
+      role: "user",
+      content: message,
+    };
 
     return {
       answer,

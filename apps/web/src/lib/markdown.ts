@@ -1,8 +1,10 @@
 // Deliberately minimal: covers the subset of markdown the model actually
 // produces (bold, italic, inline code, lists, headings, paragraphs). Escapes
 // HTML first so model output can never inject arbitrary markup — only the
-// tags this file adds itself ever reach innerHTML.
-export function renderMarkdown(text) {
+// tags this file adds itself ever reach innerHTML. `Message.tsx` must only
+// ever pass this function's output to `dangerouslySetInnerHTML`, never raw
+// model text.
+export function renderMarkdown(text: string): string {
   const escaped = escapeHtml(text);
   const withInline = applyInlineFormatting(escaped);
 
@@ -12,14 +14,14 @@ export function renderMarkdown(text) {
     .join("");
 }
 
-function applyInlineFormatting(text) {
+function applyInlineFormatting(text: string): string {
   return text
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>");
 }
 
-function renderBlock(block) {
+function renderBlock(block: string): string {
   const lines = block
     .split("\n")
     .map((line) => line.trim())
@@ -43,15 +45,16 @@ function renderBlock(block) {
     return `<ol>${items}</ol>`;
   }
 
-  const headingMatch = lines.length === 1 && lines[0].match(/^(#{1,6})\s+(.*)$/);
+  const headingMatch =
+    lines.length === 1 ? lines[0]?.match(/^(#{1,6})\s+(.*)$/) : null;
   if (headingMatch) {
-    const level = headingMatch[1].length;
-    return `<h${level}>${headingMatch[2]}</h${level}>`;
+    const level = headingMatch[1]?.length ?? 1;
+    return `<h${level}>${headingMatch[2] ?? ""}</h${level}>`;
   }
 
   return `<p>${lines.join("<br>")}</p>`;
 }
 
-function escapeHtml(text) {
+function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

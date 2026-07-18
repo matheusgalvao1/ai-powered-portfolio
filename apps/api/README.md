@@ -1,6 +1,8 @@
 # @portfolio/api
 
-REST API for the portfolio chatbot. Express, plain Node, no framework beyond that.
+REST API for the portfolio chatbot. TypeScript, Express, no framework beyond that.
+Request/stream types come from `@portfolio/shared`; model/server/CORS config comes
+from `@portfolio/config`.
 
 ## Running
 
@@ -11,7 +13,9 @@ pnpm --filter @portfolio/api dev
 ```
 
 or just `pnpm start:api` / `pnpm dev` (both apps) from the root. Listens on
-`http://localhost:3001` by default.
+`http://localhost:3001` by default. Runs directly via `tsx watch` — no separate
+build step, since nothing consumes compiled output yet (no Lambda deployment
+exists). `pnpm --filter @portfolio/api typecheck` runs `tsc --noEmit`.
 
 ## Endpoints
 
@@ -47,17 +51,22 @@ requests — the API is stateless and never persists conversation state itself.
 
 ```text
 src/
-  server.js            Wiring only: builds dependencies, mounts middleware/handlers
-  config/              One file per concern (model, server port, CORS), env-overridable
-  middleware/cors.js    CORS headers
-  handlers/            Thin HTTP layer: parse request, translate service events to SSE
-  services/chatService.js   Actual chat logic (session/request ids, calling the agent,
+  server.ts            Wiring only: builds dependencies, mounts middleware/handlers
+  middleware/cors.ts    CORS headers, reads @portfolio/config's corsConfig
+  handlers/            Thin HTTP layer: Zod-validate the request, translate
+                        service events to SSE via @portfolio/shared's formatSseEvent
+  services/chatService.ts   Actual chat logic (session/request ids, calling the agent,
                              recording the turn) — knows nothing about HTTP
-  agent.js             Wraps the OpenAI Responses API (streaming)
-  prompt.js            Builds the system prompt from prompts/system.md + the knowledge base
-  session.js           Session id generation
-  sessionRecorder.js   Appends each turn to data/sessions/<sessionId>.jsonl
+  agent.ts             Wraps the OpenAI Responses API (streaming)
+  prompt.ts            Builds the system prompt from prompts/system.md + the knowledge base
+  session.ts           Session id generation
+  sessionRecorder.ts   Appends each turn to data/sessions/<sessionId>.jsonl
 ```
+
+Model/server/CORS config lives in `packages/config` (not `src/config/` anymore —
+moved there since it's real logic other consumers can now import too). The chat
+request/response/event types live in `packages/shared`, imported by both this
+app and `apps/web`.
 
 ## Session logs
 

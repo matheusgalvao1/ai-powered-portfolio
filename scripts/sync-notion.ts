@@ -1,7 +1,15 @@
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Client } from "@notionhq/client";
+import { Client, isFullBlock, isFullPage } from "@notionhq/client";
+import type {
+  BlockObjectResponse,
+  RichTextItemResponse,
+} from "@notionhq/client/build/src/api-endpoints.js";
+
+type BlockWithChildren = BlockObjectResponse & {
+  children?: BlockWithChildren[];
+};
 
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const NOTION_ROOT_PAGE_ID = process.env.NOTION_ROOT_PAGE_ID;
@@ -18,9 +26,9 @@ const outputPath = join(repoRootDir, "knowledge/knowledge-base.md");
 
 const notion = new Client({ auth: NOTION_API_KEY });
 
-async function fetchAllChildren(blockId) {
-  const blocks = [];
-  let cursor;
+async function fetchAllChildren(blockId: string): Promise<BlockWithChildren[]> {
+  const blocks: BlockWithChildren[] = [];
+  let cursor: string | undefined;
 
   do {
     const response = await notion.blocks.children.list({
@@ -29,20 +37,25 @@ async function fetchAllChildren(blockId) {
       page_size: 100,
     });
 
-    for (const block of response.results) {
+    for (const result of response.results) {
+      if (!isFullBlock(result)) {
+        continue;
+      }
+
+      const block: BlockWithChildren = result;
       if (block.has_children) {
         block.children = await fetchAllChildren(block.id);
       }
       blocks.push(block);
     }
 
-    cursor = response.has_more ? response.next_cursor : undefined;
+    cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined;
   } while (cursor);
 
   return blocks;
 }
 
-function richTextToMarkdown(richText = []) {
+function richTextToMarkdown(richText: RichTextItemResponse[] = []): string {
   return richText
     .map((segment) => {
       let text = segment.plain_text;
@@ -55,7 +68,7 @@ function richTextToMarkdown(richText = []) {
     .join("");
 }
 
-function blockToMarkdownLine(block) {
+function blockToMarkdownLine(block: BlockObjectResponse): string | null {
   switch (block.type) {
     case "heading_1":
       return `# ${richTextToMarkdown(block.heading_1.rich_text)}`;
@@ -80,7 +93,7 @@ function blockToMarkdownLine(block) {
   }
 }
 
-function blockToLines(block, depth = 0) {
+function blockToLines(block: BlockWithChildren, depth = 0): string[] {
   const line = blockToMarkdownLine(block);
   const indent = "  ".repeat(depth);
   const lines = line ? [`${indent}${line}`] : [];
@@ -94,9 +107,9 @@ function blockToLines(block, depth = 0) {
 
 // Consecutive list items of the same kind are joined into one tight block
 // (no blank line between them); everything else starts a new block.
-function blocksToMarkdown(blocks) {
-  const groups = [];
-  let previousType = null;
+function blocksToMarkdown(blocks: BlockWithChildren[]): string {
+  const groups: string[][] = [];
+  let previousType: string | null = null;
 
   for (const block of blocks) {
     const lines = blockToLines(block);
@@ -108,7 +121,7 @@ function blocksToMarkdown(blocks) {
       block.type === "bulleted_list_item" || block.type === "numbered_list_item";
 
     if (isList && block.type === previousType) {
-      groups[groups.length - 1].push(...lines);
+      groups[groups.length - 1]?.push(...lines);
     } else {
       groups.push(lines);
     }
@@ -119,9 +132,17 @@ function blocksToMarkdown(blocks) {
   return groups.map((group) => group.join("\n")).join("\n\n");
 }
 
-async function fetchPageTitle(pageId) {
+async function fetchPageTitle(pageId: string): Promise<string> {
   const page = await notion.pages.retrieve({ page_id: pageId });
-  return richTextToMarkdown(page.properties.title?.title ?? []);
+
+  if (!isFullPage(page)) {
+    return "";
+  }
+
+  const titleProperty = page.properties.title;
+  const richText = titleProperty?.type === "title" ? titleProperty.title : [];
+
+  return richTextToMarkdown(richText);
 }
 
 const [title, blocks] = await Promise.all([

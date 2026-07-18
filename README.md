@@ -4,17 +4,23 @@ A personal portfolio site with an embedded AI chatbot that answers questions abo
 professional background, skills, projects, and experience — grounded in a knowledge
 base maintained in Notion, not the model's own memory.
 
+TypeScript throughout: a streaming Express API, a Vite + React dev client, and
+two shared packages for the wire contract and config.
+
 This repo is a pnpm monorepo:
 
 ```text
 apps/
   api/    REST API — chat endpoint, streaming, session logging
-  web/    Minimal dev client used to exercise the API while the real frontend
+  web/    Vite + React dev client used to exercise the API while the real frontend
           (a static-exported Next.js app) is still being built
+packages/
+  shared/   Wire-contract types (ChatRequest, ChatStreamEvent), Zod schemas, SSE helpers
+  config/   Model/server/CORS configuration, read from env
 knowledge/
   knowledge-base.md   Generated locally from Notion — not committed (see below)
 scripts/
-  sync-notion.js      Pulls the knowledge base from Notion into knowledge/
+  sync-notion.ts      Pulls the knowledge base from Notion into knowledge/
 ```
 
 `apps/api` and `apps/web` each have their own README with details specific to that
@@ -53,6 +59,14 @@ pnpm start:web    # web client only
 ```
 
 Open `http://localhost:3000` and chat.
+
+## Other commands
+
+```bash
+pnpm typecheck    # tsc --noEmit across every package/app
+pnpm build        # builds the web client (nothing else has a build step yet —
+                   # see apps/api/README.md for why)
+```
 
 ## Knowledge base
 

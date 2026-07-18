@@ -1,0 +1,16 @@
+{
+  "name": "@portfolio/config",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "@types/node": "^25.9.5"
+  }
+}

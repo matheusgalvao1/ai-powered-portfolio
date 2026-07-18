@@ -1,6 +1,7 @@
-import { corsConfig } from "../config/index.js";
+import type { Request, Response, NextFunction } from "express";
+import { corsConfig } from "@portfolio/config";
 
-export function corsMiddleware(req, res, next) {
+export function corsMiddleware(req: Request, res: Response, next: NextFunction): void {
   res.setHeader("Access-Control-Allow-Origin", corsConfig.allowedOrigin);
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
