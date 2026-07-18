@@ -51,8 +51,11 @@ src/
   middleware/rateLimit.ts  Per-IP fixed-window limiter on POST /chat
   handlers/            Thin HTTP layer: Zod-validate the request, translate
                         service events to SSE via @portfolio/shared's formatSseEvent
-  services/chatService.ts   Actual chat logic (session/request ids, calling the agent,
-                             recording the turn) — knows nothing about HTTP
+  services/chatService.ts   Actual chat logic (session/request ids, trimming
+                             conversation history, calling the agent, recording
+                             the turn) — knows nothing about HTTP
+  contextCompaction.ts Drops the oldest conversation turns once the estimated
+                        token count exceeds MAX_CONTEXT_TOKENS
   agent.ts             Wraps the Bedrock Converse API (streaming), via @aws-sdk/client-bedrock-runtime
   prompt.ts            Builds the system prompt from prompts/system.md + the knowledge base
   session.ts           Session id generation
@@ -70,3 +73,5 @@ Every turn is appended to `data/sessions/<sessionId>.jsonl` (gitignored). This i
 See the root `.env.example`. `BEDROCK_MODEL_ID` (default `zai.glm-5`), `BEDROCK_REGION` (default `us-east-1`), `PORT`, `ALLOWED_ORIGIN`, `RATE_LIMIT_WINDOW_SECONDS`/`RATE_LIMIT_MAX_REQUESTS`, and `API_KEY` all have working defaults (or are disabled) if unset; `AWS_BEARER_TOKEN_BEDROCK` is required — the AWS SDK picks it up automatically, no other AWS credentials or config needed.
 
 `API_KEY`, if set, requires every `POST /chat` request to send a matching `X-Api-Key` header — this is **not** user authentication (recruiters never sign in), just a deterrent against direct abuse of the endpoint beyond CORS. It's not a real secret once it ships in the web client's built bundle.
+
+`MAX_CONTEXT_TOKENS` (default `50000`) caps the estimated token size of conversation history sent to the model. This is enforced server-side (the one place it can be trusted — a client could otherwise send an arbitrarily large payload) using a rough characters-per-token heuristic, not a real tokenizer. The trimmed history comes back in the `complete` event's `conversation` field, so the client naturally adopts it for the next turn — no separate client-side trimming needed.
