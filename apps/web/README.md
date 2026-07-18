@@ -38,7 +38,8 @@ src/
                                   so model output can never inject real markup
     markdown.test.ts              Asserts that property — the one test in this
                                    app worth treating as load-bearing
-    apiConfig.ts                   Resolves API_BASE_URL from VITE_API_BASE_URL
+    apiConfig.ts                   Resolves API_BASE_URL/API_KEY from
+                                    VITE_API_BASE_URL/VITE_API_KEY
 ```
 
 `sessionId`/`conversation` are still owned entirely by the client and sent with every request — the API is stateless and never persists them.
@@ -46,3 +47,5 @@ src/
 ## Configuration
 
 `VITE_API_BASE_URL` (see `.env.example`) — defaults to `http://localhost:3001` if unset, same as before, but now overridable per PRD's "explicit configuration" preference.
+
+`VITE_API_KEY` — only needed if the API has `API_KEY` set; sent as `X-Api-Key` on every request. Not a real secret once built into this bundle — see `apps/api/README.md`.

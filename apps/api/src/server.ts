@@ -8,6 +8,7 @@ import { createChatService } from "./services/chatService.js";
 import { healthHandler } from "./handlers/health.js";
 import { createChatHandler } from "./handlers/chat.js";
 import { corsMiddleware } from "./middleware/cors.js";
+import { apiKeyMiddleware } from "./middleware/apiKey.js";
 import { createRateLimitMiddleware } from "./middleware/rateLimit.js";
 import { modelConfig, serverConfig } from "@portfolio/config";
 
@@ -37,7 +38,12 @@ app.use(express.json());
 app.use(corsMiddleware);
 
 app.get("/health", healthHandler);
-app.post("/chat", rateLimitMiddleware, createChatHandler({ chatService }));
+app.post(
+  "/chat",
+  apiKeyMiddleware,
+  rateLimitMiddleware,
+  createChatHandler({ chatService }),
+);
 
 app.listen(serverConfig.port, () => {
   console.log(`API listening on http://localhost:${serverConfig.port}`);

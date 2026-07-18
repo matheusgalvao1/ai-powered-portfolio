@@ -46,7 +46,9 @@ The client is responsible for keeping `sessionId` and `conversation` across requ
 ```text
 src/
   server.ts            Wiring only: builds dependencies, mounts middleware/handlers
-  middleware/cors.ts    CORS headers, reads @portfolio/config's corsConfig
+  middleware/cors.ts       CORS headers, reads @portfolio/config's corsConfig
+  middleware/apiKey.ts     Checks X-Api-Key against API_KEY if set (no-op if unset)
+  middleware/rateLimit.ts  Per-IP fixed-window limiter on POST /chat
   handlers/            Thin HTTP layer: Zod-validate the request, translate
                         service events to SSE via @portfolio/shared's formatSseEvent
   services/chatService.ts   Actual chat logic (session/request ids, calling the agent,
@@ -65,4 +67,6 @@ Every turn is appended to `data/sessions/<sessionId>.jsonl` (gitignored). This i
 
 ## Environment variables
 
-See the root `.env.example`. `BEDROCK_MODEL_ID` (default `zai.glm-5`), `BEDROCK_REGION` (default `us-east-1`), `PORT`, and `ALLOWED_ORIGIN` all have working defaults if unset; `AWS_BEARER_TOKEN_BEDROCK` is required — the AWS SDK picks it up automatically, no other AWS credentials or config needed.
+See the root `.env.example`. `BEDROCK_MODEL_ID` (default `zai.glm-5`), `BEDROCK_REGION` (default `us-east-1`), `PORT`, `ALLOWED_ORIGIN`, `RATE_LIMIT_WINDOW_SECONDS`/`RATE_LIMIT_MAX_REQUESTS`, and `API_KEY` all have working defaults (or are disabled) if unset; `AWS_BEARER_TOKEN_BEDROCK` is required — the AWS SDK picks it up automatically, no other AWS credentials or config needed.
+
+`API_KEY`, if set, requires every `POST /chat` request to send a matching `X-Api-Key` header — this is **not** user authentication (recruiters never sign in), just a deterrent against direct abuse of the endpoint beyond CORS. It's not a real secret once it ships in the web client's built bundle.

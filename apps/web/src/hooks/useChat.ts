@@ -5,7 +5,7 @@ import {
   ChatStreamEventSchema,
   parseSseFrames,
 } from "@portfolio/shared";
-import { API_BASE_URL } from "../lib/apiConfig.js";
+import { API_BASE_URL, API_KEY } from "../lib/apiConfig.js";
 
 export type UiMessage = {
   id: string;
@@ -67,7 +67,10 @@ export function useChat() {
 
         const response = await fetch(`${API_BASE_URL}/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(API_KEY ? { "X-Api-Key": API_KEY } : {}),
+          },
           body: JSON.stringify(body),
         });
 
