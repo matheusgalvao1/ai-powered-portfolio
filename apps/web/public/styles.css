@@ -1,58 +1,269 @@
+:root {
+  --bg: #0a0a0a;
+  --bg-panel: #111113;
+  --bg-input: rgba(255, 255, 255, 0.04);
+  --bg-input-focus: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text: #f5f5f5;
+  --text-muted: #a1a1aa;
+  --text-faint: #71717a;
+  --accent: #ffffff;
+  --accent-text: #0a0a0a;
+  --error: #f87171;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --font-sans:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
 body {
-  font-family: system-ui, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.page {
   max-width: 640px;
-  margin: 2rem auto;
-  padding: 0 1rem;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 4rem 1.5rem 3rem;
+  display: flex;
+  flex-direction: column;
 }
 
-#messages {
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 1rem;
-  height: 400px;
-  overflow-y: auto;
-  margin-bottom: 1rem;
+.page-header {
+  margin-bottom: 2rem;
 }
 
-#messages .message {
-  margin: 0.5rem 0;
-}
-
-#messages .message::before {
-  content: attr(data-label) ": ";
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.9375rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-#messages .message :is(ul, ol) {
-  margin: 0.25rem 0;
-  padding-left: 1.5rem;
+.brand-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
 }
 
-#messages .message code {
-  background: rgba(0, 0, 0, 0.06);
-  border-radius: 4px;
-  padding: 0.1rem 0.3rem;
-  font-size: 0.9em;
+.tagline {
+  margin: 0.6rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  max-width: 46ch;
 }
 
-#messages .message p {
+.panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.messages {
+  flex: 1;
+  min-height: 420px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.empty-state {
+  margin: auto;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  max-width: 34ch;
+}
+
+.message {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.message::before {
+  content: attr(data-label);
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+.message.user::before {
+  color: var(--text-faint);
+}
+
+.message.assistant::before {
+  color: var(--text-muted);
+}
+
+.message.error::before {
+  color: var(--error);
+}
+
+.message.error {
+  color: var(--error);
+}
+
+.message p {
   margin: 0;
 }
 
-.error {
-  color: #b00020;
+.message :is(ul, ol) {
+  margin: 0.4rem 0;
+  padding-left: 1.25rem;
 }
 
-form {
+.message code {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.85em;
+  font-family: var(--font-mono);
+}
+
+.composer {
   display: flex;
   gap: 0.5rem;
+  padding: 1rem;
+  border-top: 1px solid var(--border);
 }
 
-input {
+.composer-input {
   flex: 1;
-  padding: 0.5rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.7rem 0.9rem;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9375rem;
 }
 
-button {
-  padding: 0.5rem 1rem;
+.composer-input::placeholder {
+  color: var(--text-faint);
+}
+
+.composer-input:focus {
+  outline: none;
+  border-color: var(--border-strong);
+  background: var(--bg-input-focus);
+}
+
+.composer-input:disabled {
+  opacity: 0.6;
+}
+
+.composer-send {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.composer-send:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.composer-send:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.typing {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  padding: 0.15rem 0;
+}
+
+.typing span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  animation: typing-pulse 1.2s infinite ease-in-out;
+}
+
+.typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing span {
+    animation: none;
+  }
+}
+
+.messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: 2.5rem 1rem;
+  }
+
+  .messages {
+    min-height: 320px;
+  }
 }

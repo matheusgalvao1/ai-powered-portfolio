@@ -8,6 +8,7 @@ let conversation = [];
 const messagesEl = document.getElementById("messages");
 const formEl = document.getElementById("chat-form");
 const inputEl = document.getElementById("chat-input");
+const sendButtonEl = document.getElementById("chat-send");
 
 formEl.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -17,10 +18,13 @@ formEl.addEventListener("submit", async (event) => {
     return;
   }
 
+  document.querySelector(".empty-state")?.remove();
   appendMessage("user", message);
   inputEl.value = "";
+  setComposerDisabled(true);
 
   const assistantEl = appendMessage("assistant", "");
+  assistantEl.innerHTML = typingIndicator();
   let assistantText = "";
 
   try {
@@ -40,8 +44,20 @@ formEl.addEventListener("submit", async (event) => {
   } catch (error) {
     console.error(error);
     showError(assistantEl, "The chatbot is temporarily unavailable. Please try again.");
+  } finally {
+    setComposerDisabled(false);
+    inputEl.focus();
   }
 });
+
+function setComposerDisabled(disabled) {
+  inputEl.disabled = disabled;
+  sendButtonEl.disabled = disabled;
+}
+
+function typingIndicator() {
+  return '<span class="typing"><span></span><span></span><span></span></span>';
+}
 
 async function readStream(body, onEvent) {
   const reader = body.getReader();
