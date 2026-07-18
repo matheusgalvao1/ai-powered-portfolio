@@ -139,5 +139,12 @@ export function useChat() {
     [updateMessage],
   );
 
-  return { messages, sendMessage, isSending };
+  const resetConversation = useCallback(() => {
+    setMessages([]);
+    conversationRef.current = [];
+    sessionIdRef.current = undefined;
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+  }, []);
+
+  return { messages, sendMessage, isSending, resetConversation };
 }

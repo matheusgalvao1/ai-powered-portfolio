@@ -4,7 +4,7 @@ import { Message } from "./Message.js";
 import { Composer } from "./Composer.js";
 
 export function ChatPanel() {
-  const { messages, sendMessage, isSending } = useChat();
+  const { messages, sendMessage, isSending, resetConversation } = useChat();
   const messagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -15,6 +15,17 @@ export function ChatPanel() {
 
   return (
     <section className="panel" aria-label="Chat">
+      <div className="panel-header">
+        <span className="panel-header-label">Chat</span>
+        <button
+          type="button"
+          className="reset-button"
+          onClick={resetConversation}
+          disabled={messages.length === 0}
+        >
+          New chat
+        </button>
+      </div>
       <div className="messages" aria-live="polite" ref={messagesRef}>
         {messages.length === 0 ? (
           <p className="empty-state">
