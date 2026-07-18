@@ -1,10 +1,6 @@
 # @portfolio/web
 
-A Vite + React + TypeScript client used to exercise the API while it's being
-built. This is **not** the real portfolio frontend — that will be a
-static-exported Next.js app, per the project's roadmap. This one exists to test
-streaming chat end to end with a real component/hook structure, without
-committing to Next.js conventions yet.
+A Vite + React + TypeScript client used to exercise the API while it's being built. This is **not** the real portfolio frontend — that will be a static-exported Next.js app, per the project's roadmap. This one exists to test streaming chat end to end with a real component/hook structure, without committing to Next.js conventions yet.
 
 ## Running
 
@@ -14,12 +10,9 @@ From the repo root:
 pnpm --filter @portfolio/web dev
 ```
 
-or `pnpm start:web` / `pnpm dev` (both apps). Runs on `http://localhost:3000`
-(pinned in `vite.config.ts` to match the API's default `ALLOWED_ORIGIN`).
+or `pnpm start:web` / `pnpm dev` (both apps). Runs on `http://localhost:3000` (pinned in `vite.config.ts` to match the API's default `ALLOWED_ORIGIN`).
 
-Other commands: `pnpm --filter @portfolio/web build` (production build),
-`pnpm --filter @portfolio/web typecheck` (`tsc -b --noEmit`), `pnpm --filter
-@portfolio/web test` (vitest).
+Other commands: `pnpm --filter @portfolio/web build` (production build), `pnpm --filter @portfolio/web typecheck` (`tsc -b --noEmit`), `pnpm --filter @portfolio/web test` (vitest).
 
 ## Structure
 
@@ -48,11 +41,8 @@ src/
     apiConfig.ts                   Resolves API_BASE_URL from VITE_API_BASE_URL
 ```
 
-`sessionId`/`conversation` are still owned entirely by the client and sent with
-every request — the API is stateless and never persists them.
+`sessionId`/`conversation` are still owned entirely by the client and sent with every request — the API is stateless and never persists them.
 
 ## Configuration
 
-`VITE_API_BASE_URL` (see `.env.example`) — defaults to `http://localhost:3001`
-if unset, same as before, but now overridable per PRD's "explicit
-configuration" preference.
+`VITE_API_BASE_URL` (see `.env.example`) — defaults to `http://localhost:3001` if unset, same as before, but now overridable per PRD's "explicit configuration" preference.

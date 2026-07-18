@@ -1,8 +1,6 @@
 # @portfolio/api
 
-REST API for the portfolio chatbot. TypeScript, Express, no framework beyond that.
-Request/stream types come from `@portfolio/shared`; model/server/CORS config comes
-from `@portfolio/config`.
+REST API for the portfolio chatbot. TypeScript, Express, no framework beyond that. Request/stream types come from `@portfolio/shared`; model/server/CORS config comes from `@portfolio/config`.
 
 ## Running
 
@@ -12,10 +10,7 @@ From the repo root:
 pnpm --filter @portfolio/api dev
 ```
 
-or just `pnpm start:api` / `pnpm dev` (both apps) from the root. Listens on
-`http://localhost:3001` by default. Runs directly via `tsx watch` — no separate
-build step, since nothing consumes compiled output yet (no Lambda deployment
-exists). `pnpm --filter @portfolio/api typecheck` runs `tsc --noEmit`.
+or just `pnpm start:api` / `pnpm dev` (both apps) from the root. Listens on `http://localhost:3001` by default. Runs directly via `tsx watch` — no separate build step, since nothing consumes compiled output yet (no Lambda deployment exists). `pnpm --filter @portfolio/api typecheck` runs `tsc --noEmit`.
 
 ## Endpoints
 
@@ -44,8 +39,7 @@ Responds as `text/event-stream` (SSE), one JSON object per `data:` frame:
 { type: "error"; code: string; message: string }
 ```
 
-The client is responsible for keeping `sessionId` and `conversation` across
-requests — the API is stateless and never persists conversation state itself.
+The client is responsible for keeping `sessionId` and `conversation` across requests — the API is stateless and never persists conversation state itself.
 
 ## Structure
 
@@ -63,20 +57,12 @@ src/
   sessionRecorder.ts   Appends each turn to data/sessions/<sessionId>.jsonl
 ```
 
-Model/server/CORS config lives in `packages/config` (not `src/config/` anymore —
-moved there since it's real logic other consumers can now import too). The chat
-request/response/event types live in `packages/shared`, imported by both this
-app and `apps/web`.
+Model/server/CORS config lives in `packages/config` (not `src/config/` anymore — moved there since it's real logic other consumers can now import too). The chat request/response/event types live in `packages/shared`, imported by both this app and `apps/web`.
 
 ## Session logs
 
-Every turn is appended to `data/sessions/<sessionId>.jsonl` (gitignored). This is a
-local stand-in for what will eventually be a DynamoDB write — it exists so you can
-see what's actually being asked, not to serve conversation history back to the model.
+Every turn is appended to `data/sessions/<sessionId>.jsonl` (gitignored). This is a local stand-in for what will eventually be a DynamoDB write — it exists so you can see what's actually being asked, not to serve conversation history back to the model.
 
 ## Environment variables
 
-See the root `.env.example`. `BEDROCK_MODEL_ID` (default `zai.glm-5`),
-`BEDROCK_REGION` (default `us-east-1`), `PORT`, and `ALLOWED_ORIGIN` all have
-working defaults if unset; `AWS_BEARER_TOKEN_BEDROCK` is required — the AWS SDK
-picks it up automatically, no other AWS credentials or config needed.
+See the root `.env.example`. `BEDROCK_MODEL_ID` (default `zai.glm-5`), `BEDROCK_REGION` (default `us-east-1`), `PORT`, and `ALLOWED_ORIGIN` all have working defaults if unset; `AWS_BEARER_TOKEN_BEDROCK` is required — the AWS SDK picks it up automatically, no other AWS credentials or config needed.

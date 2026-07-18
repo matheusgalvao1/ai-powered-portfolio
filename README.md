@@ -1,11 +1,8 @@
 # AI-Powered Portfolio
 
-A personal portfolio site with an embedded AI chatbot that answers questions about
-professional background, skills, projects, and experience — grounded in a knowledge
-base maintained in Notion, not the model's own memory.
+A personal portfolio site with an embedded AI chatbot that answers questions about professional background, skills, projects, and experience — grounded in a knowledge base maintained in Notion, not the model's own memory.
 
-TypeScript throughout: a streaming Express API, a Vite + React dev client, and
-two shared packages for the wire contract and config.
+TypeScript throughout: a streaming Express API, a Vite + React dev client, and two shared packages for the wire contract and config.
 
 This repo is a pnpm monorepo:
 
@@ -23,8 +20,7 @@ scripts/
   sync-notion.ts      Pulls the knowledge base from Notion into knowledge/
 ```
 
-`apps/api` and `apps/web` each have their own README with details specific to that
-app.
+`apps/api` and `apps/web` each have their own README with details specific to that app.
 
 ## Prerequisites
 
@@ -49,8 +45,7 @@ Fill in `.env`:
 | `NOTION_ROOT_PAGE_ID` | Notion sync | Root page containing the knowledge base |
 | `NOTION_PROJECTS_DATABASE_ID` | Notion sync | Not used yet — reserved for a future structured Projects database |
 
-`.env` is gitignored; both apps and scripts read it automatically, no manual
-`export` needed.
+`.env` is gitignored; both apps and scripts read it automatically, no manual `export` needed.
 
 ## Running it
 
@@ -72,17 +67,12 @@ pnpm build        # builds the web client (nothing else has a build step yet —
 
 ## Knowledge base
 
-The chatbot's knowledge lives in Notion, not in this repo. `knowledge/knowledge-base.md`
-is generated locally:
+The chatbot's knowledge lives in Notion, not in this repo. `knowledge/knowledge-base.md` is generated locally:
 
 ```bash
 pnpm sync:notion
 ```
 
-This overwrites `knowledge/knowledge-base.md` from the Notion page referenced by
-`NOTION_ROOT_PAGE_ID`. The file is gitignored on purpose — it contains real personal
-content (name, contact info, etc.) synced from Notion, and this repo is meant to be
-shareable without exposing that. The API reads only this local file; it never calls
-Notion at request time.
+This overwrites `knowledge/knowledge-base.md` from the Notion page referenced by `NOTION_ROOT_PAGE_ID`. The file is gitignored on purpose — it contains real personal content (name, contact info, etc.) synced from Notion, and this repo is meant to be shareable without exposing that. The API reads only this local file; it never calls Notion at request time.
 
 Restart the API after syncing to pick up changes.
