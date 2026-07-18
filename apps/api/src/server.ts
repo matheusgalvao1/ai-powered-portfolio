@@ -8,6 +8,7 @@ import { createChatService } from "./services/chatService.js";
 import { healthHandler } from "./handlers/health.js";
 import { createChatHandler } from "./handlers/chat.js";
 import { corsMiddleware } from "./middleware/cors.js";
+import { createRateLimitMiddleware } from "./middleware/rateLimit.js";
 import { modelConfig, serverConfig } from "@portfolio/config";
 
 const apiDir = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -29,13 +30,14 @@ const recorder = new SessionRecorder({
   sessionsDir: join(apiDir, "data/sessions"),
 });
 const chatService = createChatService({ agent, recorder });
+const rateLimitMiddleware = createRateLimitMiddleware();
 
 const app = express();
 app.use(express.json());
 app.use(corsMiddleware);
 
 app.get("/health", healthHandler);
-app.post("/chat", createChatHandler({ chatService }));
+app.post("/chat", rateLimitMiddleware, createChatHandler({ chatService }));
 
 app.listen(serverConfig.port, () => {
   console.log(`API listening on http://localhost:${serverConfig.port}`);
