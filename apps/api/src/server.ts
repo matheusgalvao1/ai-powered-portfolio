@@ -18,7 +18,13 @@ const systemPrompt = buildSystemPrompt({
   knowledgeBasePath: join(repoRootDir, "knowledge/knowledge-base.md"),
 });
 
-const agent = new Agent({ systemPrompt, model: modelConfig.model });
+const agent = new Agent({
+  systemPrompt,
+  modelId: modelConfig.modelId,
+  region: modelConfig.region,
+  maxOutputTokens: modelConfig.maxOutputTokens,
+  temperature: modelConfig.temperature,
+});
 const recorder = new SessionRecorder({
   sessionsDir: join(apiDir, "data/sessions"),
 });

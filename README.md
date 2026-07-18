@@ -42,7 +42,9 @@ Fill in `.env`:
 
 | Variable | Used by | Notes |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | API | Powers chat responses |
+| `AWS_BEARER_TOKEN_BEDROCK` | API | Bedrock API key — picked up automatically by the AWS SDK, no other AWS config needed |
+| `BEDROCK_MODEL_ID` | API | Defaults to `zai.glm-5` if unset |
+| `BEDROCK_REGION` | API | Defaults to `us-east-1` if unset — must be a region GLM-5 actually supports (no cross-region inference for this model) |
 | `NOTION_API_KEY` | Notion sync | Internal integration secret |
 | `NOTION_ROOT_PAGE_ID` | Notion sync | Root page containing the knowledge base |
 | `NOTION_PROJECTS_DATABASE_ID` | Notion sync | Not used yet — reserved for a future structured Projects database |

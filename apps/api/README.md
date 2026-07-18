@@ -57,7 +57,7 @@ src/
                         service events to SSE via @portfolio/shared's formatSseEvent
   services/chatService.ts   Actual chat logic (session/request ids, calling the agent,
                              recording the turn) — knows nothing about HTTP
-  agent.ts             Wraps the OpenAI Responses API (streaming)
+  agent.ts             Wraps the Bedrock Converse API (streaming), via @aws-sdk/client-bedrock-runtime
   prompt.ts            Builds the system prompt from prompts/system.md + the knowledge base
   session.ts           Session id generation
   sessionRecorder.ts   Appends each turn to data/sessions/<sessionId>.jsonl
@@ -76,5 +76,7 @@ see what's actually being asked, not to serve conversation history back to the m
 
 ## Environment variables
 
-See the root `.env.example`. `CHAT_MODEL`, `PORT`, and `ALLOWED_ORIGIN` all have
-working defaults if unset; `OPENAI_API_KEY` is required.
+See the root `.env.example`. `BEDROCK_MODEL_ID` (default `zai.glm-5`),
+`BEDROCK_REGION` (default `us-east-1`), `PORT`, and `ALLOWED_ORIGIN` all have
+working defaults if unset; `AWS_BEARER_TOKEN_BEDROCK` is required — the AWS SDK
+picks it up automatically, no other AWS credentials or config needed.

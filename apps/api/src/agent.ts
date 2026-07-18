@@ -1,25 +1,53 @@
-import OpenAI from "openai";
+import {
+  BedrockRuntimeClient,
+  ConverseStreamCommand,
+} from "@aws-sdk/client-bedrock-runtime";
+import type { Message } from "@aws-sdk/client-bedrock-runtime";
 import type { ConversationMessage } from "@portfolio/shared";
 
 type AgentOptions = {
   systemPrompt: string;
-  model?: string;
-  client?: OpenAI;
+  modelId: string;
+  region: string;
+  maxOutputTokens?: number;
+  temperature?: number;
+  client?: BedrockRuntimeClient;
 };
+
+function toBedrockMessage(message: ConversationMessage): Message {
+  return {
+    role: message.role,
+    content: [{ text: message.content }],
+  };
+}
 
 export class Agent {
   private systemPrompt: string;
-  private model: string | undefined;
-  private client: OpenAI;
+  private modelId: string;
+  private maxOutputTokens: number | undefined;
+  private temperature: number | undefined;
+  private client: BedrockRuntimeClient;
 
-  constructor({ systemPrompt, model, client }: AgentOptions) {
+  constructor({
+    systemPrompt,
+    modelId,
+    region,
+    maxOutputTokens,
+    temperature,
+    client,
+  }: AgentOptions) {
     if (!systemPrompt) {
       throw new Error("Agent requires a systemPrompt");
     }
 
     this.systemPrompt = systemPrompt;
-    this.model = model;
-    this.client = client ?? new OpenAI();
+    this.modelId = modelId;
+    this.maxOutputTokens = maxOutputTokens;
+    this.temperature = temperature;
+    // Credentials are resolved automatically from AWS_BEARER_TOKEN_BEDROCK
+    // (Bedrock API key auth) when no explicit credentials are configured —
+    // no manual wiring needed.
+    this.client = client ?? new BedrockRuntimeClient({ region });
   }
 
   async send(
@@ -27,29 +55,29 @@ export class Agent {
     { conversation = [] }: { conversation?: ConversationMessage[] } = {},
     onToken: (value: string) => void = () => {},
   ): Promise<{ answer: string; conversation: ConversationMessage[] }> {
-    const input =
-      conversation.length === 0
-        ? message
-        : [...conversation, { role: "user" as const, content: message }];
+    const userMessage: ConversationMessage = { role: "user", content: message };
+    const messages: Message[] = [...conversation, userMessage].map(toBedrockMessage);
 
-    const stream = this.client.responses.stream({
-      model: this.model,
-      instructions: this.systemPrompt,
-      input,
+    const command = new ConverseStreamCommand({
+      modelId: this.modelId,
+      system: [{ text: this.systemPrompt }],
+      messages,
+      inferenceConfig: {
+        maxTokens: this.maxOutputTokens,
+        temperature: this.temperature,
+      },
     });
 
-    for await (const event of stream) {
-      if (event.type === "response.output_text.delta") {
-        onToken(event.delta);
+    const response = await this.client.send(command);
+
+    let answer = "";
+    for await (const event of response.stream ?? []) {
+      const text = event.contentBlockDelta?.delta?.text;
+      if (text) {
+        answer += text;
+        onToken(text);
       }
     }
-
-    const response = await stream.finalResponse();
-    const answer = response.output_text;
-    const userMessage: ConversationMessage = {
-      role: "user",
-      content: message,
-    };
 
     return {
       answer,

@@ -3,3 +3,6 @@ packages:
   - "packages/*"
 allowBuilds:
   esbuild: true
+minimumReleaseAgeExclude:
+  - '@aws-sdk/client-bedrock-runtime@3.1090.0'
+  - '@aws-sdk/token-providers@3.1090.0'
