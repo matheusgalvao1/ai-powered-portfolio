@@ -2,7 +2,7 @@
 
 A personal portfolio site with an embedded AI chatbot that answers questions about professional background, skills, projects, and experience — grounded in a knowledge base maintained in Notion, not the model's own memory.
 
-TypeScript throughout: a streaming Express API, a Vite + React dev client, and two shared packages for the wire contract and config.
+TypeScript throughout: a streaming Express API running a hand-rolled tool-calling agent loop, a Vite + React dev client, and shared packages for the wire contract, config, agent loop, and tools.
 
 This repo is a pnpm monorepo:
 
@@ -13,9 +13,15 @@ apps/
           (a static-exported Next.js app) is still being built
 packages/
   shared/   Wire-contract types (ChatRequest, ChatStreamEvent), Zod schemas, SSE helpers
-  config/   Model/server/CORS configuration, read from env
+  config/   Model/server/CORS/agent-limit configuration, read from env
+  agent/    State-reducer agent loop: owned context serialization, final_answer
+            termination semaphore, nudge handling, Bedrock streaming step
+  tools/    Tool registry + the structured portfolio tools (list_projects,
+            get_contact_information) and the final_answer control tool
 knowledge/
-  knowledge-base.md   Generated locally from Notion — not committed (see below)
+  knowledge-base.md        Generated locally from Notion — not committed (see below)
+  portfolio.json           Structured data the agent's tools read — not committed
+  portfolio.example.json   Committed placeholder to copy from
 scripts/
   sync-notion.ts      Pulls the knowledge base from Notion into knowledge/
 ```

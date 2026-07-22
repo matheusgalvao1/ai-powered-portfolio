@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
-import type { ChatStreamEvent } from "@portfolio/shared";
-import { ChatRequestSchema, formatSseEvent } from "@portfolio/shared";
+import type { ApiError, ChatStreamEvent } from "@portfolio/shared";
+import { ChatErrorCode, ChatRequestSchema, formatSseEvent } from "@portfolio/shared";
 import type { ChatService } from "../services/chatService.js";
 
 export function createChatHandler({ chatService }: { chatService: ChatService }) {
@@ -8,7 +9,14 @@ export function createChatHandler({ chatService }: { chatService: ChatService })
     const result = ChatRequestSchema.safeParse(req.body);
 
     if (!result.success) {
-      res.status(400).json({ error: "message is required" });
+      const body: ApiError = {
+        error: {
+          code: ChatErrorCode.VALIDATION_ERROR,
+          message: "message is required",
+          requestId: randomUUID(),
+        },
+      };
+      res.status(400).json(body);
       return;
     }
 

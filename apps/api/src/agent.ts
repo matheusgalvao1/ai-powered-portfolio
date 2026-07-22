@@ -1,91 +1,72 @@
+import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
 import {
-  BedrockRuntimeClient,
-  ConverseStreamCommand,
-} from "@aws-sdk/client-bedrock-runtime";
-import type { Message } from "@aws-sdk/client-bedrock-runtime";
-import type { ConversationMessage } from "@portfolio/shared";
+  createBedrockStep,
+  createInitialState,
+  runAgentLoop,
+  type AgentState,
+  type EmitFn,
+} from "@portfolio/agent";
+import {
+  createGetContactInformationTool,
+  createListProjectsTool,
+  createToolRegistry,
+  type PortfolioData,
+} from "@portfolio/tools";
+import type { ChatSource, ConversationMessage } from "@portfolio/shared";
 
-type AgentOptions = {
+type PortfolioAgentOptions = {
   systemPrompt: string;
   modelId: string;
   region: string;
   maxOutputTokens?: number;
   temperature?: number;
+  maxIterations: number;
+  maxToolCalls: number;
+  portfolio: PortfolioData;
+  validSources: ChatSource[];
   client?: BedrockRuntimeClient;
 };
 
-function toBedrockMessage(message: ConversationMessage): Message {
-  return {
-    role: message.role,
-    content: [{ text: message.content }],
-  };
-}
-
-export class Agent {
-  private systemPrompt: string;
-  private modelId: string;
-  private maxOutputTokens: number | undefined;
-  private temperature: number | undefined;
-  private client: BedrockRuntimeClient;
-
-  constructor({
-    systemPrompt,
-    modelId,
-    region,
-    maxOutputTokens,
-    temperature,
-    client,
-  }: AgentOptions) {
-    if (!systemPrompt) {
-      throw new Error("Agent requires a systemPrompt");
-    }
-
-    this.systemPrompt = systemPrompt;
-    this.modelId = modelId;
-    this.maxOutputTokens = maxOutputTokens;
-    this.temperature = temperature;
-    // Credentials are resolved automatically from AWS_BEARER_TOKEN_BEDROCK
-    // (Bedrock API key auth) when no explicit credentials are configured —
-    // no manual wiring needed.
-    this.client = client ?? new BedrockRuntimeClient({ region });
-  }
-
-  async send(
+export type PortfolioAgent = {
+  run(
     message: string,
-    { conversation = [] }: { conversation?: ConversationMessage[] } = {},
-    onToken: (value: string) => void = () => {},
-  ): Promise<{ answer: string; conversation: ConversationMessage[] }> {
-    const userMessage: ConversationMessage = { role: "user", content: message };
-    const messages: Message[] = [...conversation, userMessage].map(toBedrockMessage);
+    conversation: ConversationMessage[],
+    emit: EmitFn,
+  ): Promise<AgentState>;
+};
 
-    const command = new ConverseStreamCommand({
-      modelId: this.modelId,
-      system: [{ text: this.systemPrompt }],
-      messages,
-      inferenceConfig: {
-        maxTokens: this.maxOutputTokens,
-        temperature: this.temperature,
-      },
-    });
+export function createPortfolioAgent(options: PortfolioAgentOptions): PortfolioAgent {
+  const registry = createToolRegistry([
+    createListProjectsTool(options.portfolio),
+    createGetContactInformationTool(options.portfolio),
+  ]);
 
-    const response = await this.client.send(command);
+  // Credentials resolve automatically from AWS_BEARER_TOKEN_BEDROCK when no
+  // explicit credentials are configured — no manual wiring needed.
+  const client = options.client ?? new BedrockRuntimeClient({ region: options.region });
 
-    let answer = "";
-    for await (const event of response.stream ?? []) {
-      const text = event.contentBlockDelta?.delta?.text;
-      if (text) {
-        answer += text;
-        onToken(text);
-      }
-    }
+  const step = createBedrockStep({
+    client,
+    modelId: options.modelId,
+    systemPrompt: options.systemPrompt,
+    toolSpecs: registry.specs(),
+    maxOutputTokens: options.maxOutputTokens,
+    temperature: options.temperature,
+  });
 
-    return {
-      answer,
-      conversation: [
-        ...conversation,
-        userMessage,
-        { role: "assistant", content: answer },
-      ],
-    };
-  }
+  return {
+    run(message, conversation, emit) {
+      return runAgentLoop(
+        createInitialState(message, conversation),
+        {
+          step,
+          tools: registry,
+          validSources: options.validSources,
+          maxIterations: options.maxIterations,
+          maxToolCalls: options.maxToolCalls,
+        },
+        emit,
+      );
+    },
+  };
 }

@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
+import type { ApiError } from "@portfolio/shared";
+import { ChatErrorCode } from "@portfolio/shared";
 import { rateLimitConfig } from "@portfolio/config";
 
 type Bucket = {
@@ -40,7 +43,13 @@ export function createRateLimitMiddleware({
     }
 
     if (bucket.count >= maxRequests) {
-      res.status(429).json({ error: "Too many requests. Please try again shortly." });
+      res.status(429).json({
+        error: {
+          code: ChatErrorCode.RATE_LIMITED,
+          message: "Too many requests. Please try again shortly.",
+          requestId: randomUUID(),
+        },
+      } satisfies ApiError);
       return;
     }
 
