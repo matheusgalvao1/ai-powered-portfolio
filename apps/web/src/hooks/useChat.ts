@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { ConversationMessage } from "@portfolio/shared";
+import type { ChatSource, ConversationMessage } from "@portfolio/shared";
 import {
   ChatRequestSchema,
   ChatStreamEventSchema,
@@ -7,16 +7,32 @@ import {
 } from "@portfolio/shared";
 import { API_BASE_URL, API_KEY } from "../lib/apiConfig.js";
 
+// What the assistant is visibly doing while a turn is in flight — shown as
+// a label next to the typing indicator, never the underlying content (no
+// reasoning tokens, no tool arguments or results).
+export type UiActivity = { kind: "thinking" | "tool"; label: string } | null;
+
 export type UiMessage = {
   id: string;
   role: "user" | "assistant" | "error";
   text: string;
   status: "pending" | "streaming" | "done" | "error";
+  activity?: UiActivity;
+  sources?: ChatSource[];
 };
 
 const SESSION_STORAGE_KEY = "sessionId";
 const UNAVAILABLE_MESSAGE =
   "The chatbot is temporarily unavailable. Please try again.";
+
+const TOOL_LABELS: Record<string, string> = {
+  list_projects: "Checking the project list",
+  get_contact_information: "Looking up contact info",
+};
+
+function toolLabel(name: string): string {
+  return TOOL_LABELS[name] ?? `Using ${name}`;
+}
 
 export function useChat() {
   const [messages, setMessages] = useState<UiMessage[]>([]);
@@ -29,6 +45,16 @@ export function useChat() {
   const updateMessage = useCallback((id: string, patch: Partial<UiMessage>) => {
     setMessages((prev) =>
       prev.map((message) => (message.id === id ? { ...message, ...patch } : message)),
+    );
+  }, []);
+
+  const appendSource = useCallback((id: string, source: ChatSource) => {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === id
+          ? { ...message, sources: [...(message.sources ?? []), source] }
+          : message,
+      ),
     );
   }, []);
 
@@ -109,17 +135,38 @@ export function useChat() {
                 updateMessage(assistantId, {
                   text: assistantText,
                   status: "streaming",
+                  activity: null,
                 });
+                break;
+              case "thinking":
+                updateMessage(assistantId, {
+                  activity:
+                    event.status === "started"
+                      ? { kind: "thinking", label: "Thinking" }
+                      : null,
+                });
+                break;
+              case "tool":
+                updateMessage(assistantId, {
+                  activity:
+                    event.status === "started"
+                      ? { kind: "tool", label: toolLabel(event.name) }
+                      : null,
+                });
+                break;
+              case "source":
+                appendSource(assistantId, event.source);
                 break;
               case "complete":
                 conversationRef.current = event.conversation;
-                updateMessage(assistantId, { status: "done" });
+                updateMessage(assistantId, { status: "done", activity: null });
                 break;
               case "error":
                 updateMessage(assistantId, {
                   role: "error",
                   status: "error",
                   text: event.message,
+                  activity: null,
                 });
                 break;
             }
@@ -131,12 +178,13 @@ export function useChat() {
           role: "error",
           status: "error",
           text: UNAVAILABLE_MESSAGE,
+          activity: null,
         });
       } finally {
         setIsSending(false);
       }
     },
-    [updateMessage],
+    [updateMessage, appendSource],
   );
 
   const resetConversation = useCallback(() => {

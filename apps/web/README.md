@@ -25,14 +25,18 @@ src/
                               attribute the CSS depends on
   components/
     ChatPanel.tsx             Message list + empty-state + composer
-    Message.tsx                One message bubble; the only place
-                                dangerouslySetInnerHTML appears, and only ever
-                                with lib/markdown.ts's escaped output
+    Message.tsx                One message bubble: markdown body, activity
+                                indicator (thinking/tool label — never
+                                arguments, results, or reasoning content),
+                                and a sources footer once done. The only
+                                place dangerouslySetInnerHTML appears, and
+                                only ever with lib/markdown.ts's escaped output
     Composer.tsx                Input + send button
   hooks/
     useChat.ts                  sessionId (localStorage) + conversation state,
                                  owns the SSE read loop, validates every frame
-                                 against @portfolio/shared's ChatStreamEventSchema
+                                 against @portfolio/shared's ChatStreamEventSchema,
+                                 maps tool/thinking/source events to UI state
   lib/
     markdown.ts                  Markdown -> HTML renderer: escapes HTML first,
                                   so model output can never inject real markup
