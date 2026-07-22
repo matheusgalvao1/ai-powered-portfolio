@@ -10,3 +10,7 @@ prd-ai-powered-portfolio.md
 # Real personal content synced from Notion (contains name, DOB, email, etc.);
 # regenerate locally with `pnpm sync:notion`
 knowledge/knowledge-base.md
+
+# Real structured portfolio data read by the agent's tools (contact info etc.);
+# start from knowledge/portfolio.example.json
+knowledge/portfolio.json
