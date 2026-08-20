@@ -70,7 +70,7 @@ src/
                         service events to SSE via @portfolio/shared's formatSseEvent
   services/chatService.ts   Session/request ids, running the agent, recording the
                              turn, complete/error events — knows nothing about HTTP
-  agent.ts             Composition root: builds the tool registry, Bedrock step,
+  agent.ts             Composition root: builds the tool registry, OpenRouter step,
                         and loop deps from @portfolio/agent + @portfolio/tools
   portfolio.ts         Loads knowledge/portfolio.json (falls back to the example file)
   sources.ts           Derives citable sources from the knowledge base's ## headings
@@ -85,7 +85,7 @@ Every turn is appended to `data/sessions/<sessionId>.jsonl` (gitignored). This i
 
 ## Environment variables
 
-See the root `.env.example`. `BEDROCK_MODEL_ID` (default `zai.glm-5`), `BEDROCK_REGION` (default `us-east-1`), `PORT`, `ALLOWED_ORIGIN`, `MAX_AGENT_ITERATIONS` (default 5), `MAX_TOOL_CALLS` (default 8), `RATE_LIMIT_WINDOW_SECONDS`/`RATE_LIMIT_MAX_REQUESTS`, and `API_KEY` all have working defaults (or are disabled) if unset; `AWS_BEARER_TOKEN_BEDROCK` is required — the AWS SDK picks it up automatically, no other AWS credentials or config needed.
+See the root `.env.example`. `OPENROUTER_API_KEY` is required. `OPENROUTER_MODEL_ID` defaults to `deepseek/deepseek-v4-flash-0731`; `OPENROUTER_SITE_URL` and `OPENROUTER_SITE_NAME` are optional attribution headers. `PORT`, `ALLOWED_ORIGIN`, `MAX_AGENT_ITERATIONS` (default 5), `MAX_TOOL_CALLS` (default 8), `RATE_LIMIT_WINDOW_SECONDS`/`RATE_LIMIT_MAX_REQUESTS`, and `API_KEY` all have working defaults (or are disabled) if unset.
 
 `API_KEY`, if set, requires every `POST /chat` request to send a matching `X-Api-Key` header — this is **not** user authentication (recruiters never sign in), just a deterrent against direct abuse of the endpoint beyond CORS. It's not a real secret once it ships in the web client's built bundle.
 

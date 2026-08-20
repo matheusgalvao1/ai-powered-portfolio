@@ -44,9 +44,8 @@ export const ChatStreamEventSchema = z.discriminatedUnion("type", [
     status: z.enum(["started", "completed"]),
   }),
   // Signals that the model is reasoning, without the reasoning content
-  // itself. Only fires on models that emit reasoning deltas via Bedrock
-  // Converse (zai.glm-5 does not, verified empirically — wired so a future
-  // model switch lights this up without a contract change).
+  // itself. Only fires on models that emit reasoning deltas through the
+  // provider adapter; models without reasoning support simply omit it.
   z.object({
     type: z.literal("thinking"),
     status: z.enum(["started", "stopped"]),

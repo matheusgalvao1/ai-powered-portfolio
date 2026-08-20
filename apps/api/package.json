@@ -7,7 +7,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.1090.0",
     "@portfolio/agent": "workspace:*",
     "@portfolio/config": "workspace:*",
     "@portfolio/shared": "workspace:*",

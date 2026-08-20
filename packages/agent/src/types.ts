@@ -41,7 +41,7 @@ export type StepResult = {
 };
 
 // One model invocation. Injected into the loop so tests can drive it with a
-// scripted fake; the real implementation streams from Bedrock Converse.
+// scripted fake; the real implementation streams from OpenRouter.
 export type StepFn = (args: {
   prompt: string;
   onToken: (value: string) => void;

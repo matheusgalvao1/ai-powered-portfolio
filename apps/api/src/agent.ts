@@ -1,6 +1,5 @@
-import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
 import {
-  createBedrockStep,
+  createOpenRouterStep,
   createInitialState,
   runAgentLoop,
   type AgentState,
@@ -16,15 +15,16 @@ import type { ChatSource, ConversationMessage } from "@portfolio/shared";
 
 type PortfolioAgentOptions = {
   systemPrompt: string;
+  apiKey: string;
   modelId: string;
-  region: string;
+  siteUrl?: string;
+  siteName?: string;
   maxOutputTokens?: number;
   temperature?: number;
   maxIterations: number;
   maxToolCalls: number;
   portfolio: PortfolioData;
   validSources: ChatSource[];
-  client?: BedrockRuntimeClient;
 };
 
 export type PortfolioAgent = {
@@ -41,15 +41,13 @@ export function createPortfolioAgent(options: PortfolioAgentOptions): PortfolioA
     createGetContactInformationTool(options.portfolio),
   ]);
 
-  // Credentials resolve automatically from AWS_BEARER_TOKEN_BEDROCK when no
-  // explicit credentials are configured — no manual wiring needed.
-  const client = options.client ?? new BedrockRuntimeClient({ region: options.region });
-
-  const step = createBedrockStep({
-    client,
+  const step = createOpenRouterStep({
+    apiKey: options.apiKey,
     modelId: options.modelId,
     systemPrompt: options.systemPrompt,
     toolSpecs: registry.specs(),
+    siteUrl: options.siteUrl,
+    siteName: options.siteName,
     maxOutputTokens: options.maxOutputTokens,
     temperature: options.temperature,
   });

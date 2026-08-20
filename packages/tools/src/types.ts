@@ -1,6 +1,7 @@
 import type { z } from "zod";
 
-// Provider-agnostic on purpose: this package knows nothing about Bedrock.
+// Provider-agnostic on purpose: this package knows nothing about the model
+// provider.
 // The agent loop maps ToolSpec.inputJsonSchema into the provider's tool
 // config format.
 export type ToolSpec = {

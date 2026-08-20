@@ -15,7 +15,7 @@ packages/
   shared/   Wire-contract types (ChatRequest, ChatStreamEvent), Zod schemas, SSE helpers
   config/   Model/server/CORS/agent-limit configuration, read from env
   agent/    State-reducer agent loop: owned context serialization, final_answer
-            termination semaphore, nudge handling, Bedrock streaming step
+            termination semaphore, nudge handling, OpenRouter streaming step
   tools/    Tool registry + the structured portfolio tools (list_projects,
             get_contact_information) and the final_answer control tool
 knowledge/
@@ -44,9 +44,10 @@ Fill in `.env`:
 
 | Variable | Used by | Notes |
 | --- | --- | --- |
-| `AWS_BEARER_TOKEN_BEDROCK` | API | Bedrock API key — picked up automatically by the AWS SDK, no other AWS config needed |
-| `BEDROCK_MODEL_ID` | API | Defaults to `zai.glm-5` if unset |
-| `BEDROCK_REGION` | API | Defaults to `us-east-1` if unset — must be a region GLM-5 actually supports (no cross-region inference for this model) |
+| `OPENROUTER_API_KEY` | API | OpenRouter API key |
+| `OPENROUTER_MODEL_ID` | API | Defaults to `deepseek/deepseek-v4-flash-0731` if unset |
+| `OPENROUTER_SITE_URL` | API | Optional site URL used for OpenRouter attribution |
+| `OPENROUTER_SITE_NAME` | API | Optional app name used for OpenRouter attribution |
 | `NOTION_API_KEY` | Notion sync | Internal integration secret |
 | `NOTION_ROOT_PAGE_ID` | Notion sync | Root page containing the knowledge base |
 | `NOTION_PROJECTS_DATABASE_ID` | Notion sync | Not used yet — reserved for a future structured Projects database |

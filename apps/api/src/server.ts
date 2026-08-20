@@ -32,8 +32,10 @@ const portfolio = loadPortfolioData({
 
 const agent = createPortfolioAgent({
   systemPrompt,
+  apiKey: modelConfig.apiKey,
   modelId: modelConfig.modelId,
-  region: modelConfig.region,
+  siteUrl: modelConfig.siteUrl,
+  siteName: modelConfig.siteName,
   maxOutputTokens: modelConfig.maxOutputTokens,
   temperature: modelConfig.temperature,
   maxIterations: agentConfig.maxIterations,
