@@ -1,6 +1,6 @@
 import { ThinkingOrb } from "thinking-orbs";
-import { renderMarkdown } from "../lib/markdown.js";
 import type { UiMessage } from "../hooks/useChat.js";
+import { MarkdownMessage } from "./MarkdownMessage.js";
 
 function ActivityIndicator({
   label,
@@ -39,13 +39,7 @@ export function Message({
         ) : null}
         <div className="message-content">
           {text ? (
-            <div
-              className="message-body"
-              // Only ever renderMarkdown(text) here, never raw model text — the
-              // escape-then-whitelist-tags safety property lives entirely in
-              // lib/markdown.ts.
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }}
-            />
+            <MarkdownMessage text={text} />
           ) : null}
           {status === "done" && sources && sources.length > 0 ? (
             <div className="message-sources">
