@@ -20,7 +20,7 @@ export function createChatHandler({ chatService }: { chatService: ChatService })
       return;
     }
 
-    const { message, sessionId, conversation } = result.data;
+    const { message, sessionId, conversation, attachments } = result.data;
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -31,7 +31,7 @@ export function createChatHandler({ chatService }: { chatService: ChatService })
       res.write(formatSseEvent(event));
     };
 
-    await chatService.streamChat({ message, sessionId, conversation }, emit);
+    await chatService.streamChat({ message, sessionId, conversation, attachments }, emit);
 
     res.end();
   };

@@ -1,108 +1,141 @@
-import type { ChatSource, ConversationMessage } from "@portfolio/shared";
-import { FINAL_ANSWER_TOOL_NAME, FinalAnswerInputSchema } from "@portfolio/tools";
-import { serializeContext } from "./context.js";
-import type { AgentLoopDeps, AgentState, EmitFn } from "./types.js";
+import type { ConversationMessage } from "@portfolio/shared";
+import type {
+  AgentLoopDeps,
+  AgentMessage,
+  AgentState,
+  EmitFn,
+  UserAttachment,
+  UserContentPart,
+} from "./types.js";
+
+const EMPTY_RESPONSE_NUDGE =
+  "System note: your previous response was empty. Respond to the user's request now by " +
+  "writing your complete answer as plain text, with no tool calls.";
+
+// Images and PDFs become multimodal content parts (they need a vision- or
+// file-capable model); text attachments are inlined into the text part, so
+// they work with any model.
+function createUserMessage(
+  message: string,
+  attachments: UserAttachment[],
+): AgentMessage {
+  if (attachments.length === 0) {
+    return { role: "user", content: message };
+  }
+
+  const textParts: string[] = [message];
+  for (const attachment of attachments) {
+    if (attachment.mimeType.startsWith("text/")) {
+      const text = Buffer.from(attachment.data, "base64").toString("utf8");
+      textParts.push(
+        `\n\n[Attached file: ${attachment.name}]\n<attached_file>\n${text}\n</attached_file>`,
+      );
+    } else if (attachment.mimeType.startsWith("image/")) {
+      textParts.push(`\n\n[Attached image: ${attachment.name}]`);
+    } else {
+      textParts.push(`\n\n[Attached document: ${attachment.name}]`);
+    }
+  }
+
+  const parts: UserContentPart[] = [{ type: "text", text: textParts.join("") }];
+  for (const attachment of attachments) {
+    const dataUrl = `data:${attachment.mimeType};base64,${attachment.data}`;
+    if (attachment.mimeType.startsWith("image/")) {
+      parts.push({ type: "image_url", image_url: { url: dataUrl } });
+    } else if (attachment.mimeType === "application/pdf") {
+      parts.push({
+        type: "file",
+        file: { filename: attachment.name, file_data: dataUrl },
+      });
+    }
+  }
+
+  return { role: "user", content: parts };
+}
 
 export function createInitialState(
   message: string,
   conversation: ConversationMessage[],
+  attachments: UserAttachment[] = [],
 ): AgentState {
   return {
     status: "running",
     steps: 0,
     toolCallsUsed: 0,
-    conversation,
-    context: [{ kind: "user_request", content: message }],
+    messages: [
+      ...conversation.map((entry) => ({ role: entry.role, content: entry.content })),
+      createUserMessage(message, attachments),
+    ],
     answer: "",
     truncated: false,
   };
 }
 
-// Sources are validated leniently and degrade to "no sources" — an invalid
-// citation never fails the turn (PRD 9.10).
-function emitValidatedSources(input: unknown, validSources: ChatSource[], emit: EmitFn): void {
-  const parsed = FinalAnswerInputSchema.safeParse(input ?? {});
-  if (!parsed.success) {
-    return;
-  }
-
-  const byId = new Map(validSources.map((source) => [source.id.toLowerCase(), source]));
-  const byTitle = new Map(validSources.map((source) => [source.title.toLowerCase(), source]));
-  const emitted = new Set<string>();
-
-  for (const cited of parsed.data.sources) {
-    const match =
-      (cited.id ? byId.get(cited.id.toLowerCase()) : undefined) ??
-      byTitle.get(cited.title.toLowerCase());
-    if (match && !emitted.has(match.id)) {
-      emitted.add(match.id);
-      emit({ type: "source", source: match });
-    }
-  }
-}
-
-// State-in/state-out reducer over the context event log. A response is
-// final if and only if it contains a final_answer call; a response with
-// neither tool calls nor final_answer is a protocol violation that gets a
-// nudge event, bounded by maxIterations.
+// Classic ReAct loop over the native message array: a response with tool
+// calls is executed and the results appended; a response with none IS the
+// final answer — the streamed text is what gets delivered (stop reason
+// "length" marks it truncated). State in, state out, bounded by
+// maxIterations, which is what makes it unit-testable without mocking HTTP.
 export async function runAgentLoop(
   initial: AgentState,
   deps: AgentLoopDeps,
   emit: EmitFn,
 ): Promise<AgentState> {
-  const state: AgentState = { ...initial, context: [...initial.context] };
+  const state: AgentState = { ...initial, messages: [...initial.messages] };
+  let retriedEmpty = false;
 
   while (state.status === "running" && state.steps < deps.maxIterations) {
     state.steps += 1;
 
     const response = await deps.step({
-      prompt: serializeContext(state),
+      messages: state.messages,
       onToken: (value) => emit({ type: "token", value }),
       onThinking: (status) => emit({ type: "thinking", status }),
     });
 
-    const finalCall = response.toolUses.find((call) => call.name === FINAL_ANSWER_TOOL_NAME);
-    if (finalCall) {
-      emitValidatedSources(finalCall.input, deps.validSources, emit);
+    if (response.toolUses.length === 0) {
+      if (response.text.trim().length === 0) {
+        // An empty response streams nothing the user could keep. Retry once
+        // with a nudge instead of ending the turn on silence; two empty
+        // responses in a row fail the turn through the max_steps path.
+        if (retriedEmpty) {
+          console.warn(`[agent] empty response after retry at step ${state.steps}`);
+          state.status = "max_steps";
+          return state;
+        }
+        state.messages.push({ role: "system", content: EMPTY_RESPONSE_NUDGE });
+        retriedEmpty = true;
+        continue;
+      }
+
       state.status = "complete";
       state.answer = response.text;
       if (response.stopReason === "max_tokens") {
         state.truncated = true;
-        console.warn(`[agent] final answer hit the max_tokens cap at step ${state.steps}`);
+        console.warn(`[agent] answer hit the max_tokens cap at step ${state.steps}`);
       }
       return state;
     }
 
-    if (response.stopReason === "max_tokens") {
-      // Truncated mid-answer with no termination signal. Nudging would just
-      // retry the same over-long answer into the same cap, so complete with
-      // what already streamed and log it loudly instead.
-      console.warn(
-        `[agent] response truncated by max_tokens at step ${state.steps} without final_answer; completing with partial text`,
-      );
-      state.status = "complete";
-      state.answer = response.text;
-      state.truncated = true;
-      return state;
-    }
-
-    if (response.toolUses.length === 0) {
-      state.context.push({ kind: "narration", content: response.text }, { kind: "nudge" });
-      continue;
-    }
-
-    if (response.text.trim().length > 0) {
-      state.context.push({ kind: "narration", content: response.text });
-    }
+    state.messages.push({
+      role: "assistant",
+      content: response.text,
+      tool_calls: response.toolUses.map((call) => ({
+        id: call.toolUseId,
+        type: "function" as const,
+        function: { name: call.name, arguments: JSON.stringify(call.input ?? {}) },
+      })),
+    });
 
     for (const call of response.toolUses) {
       if (state.toolCallsUsed >= deps.maxToolCalls) {
-        state.context.push({
-          kind: "tool_result",
+        state.messages.push({
+          role: "tool",
+          tool_call_id: call.toolUseId,
           name: call.name,
-          ok: false,
           content:
-            "Tool call budget for this request is exhausted. Write your final answer now and call final_answer.",
+            "Tool call budget for this request is exhausted. Write your complete answer now " +
+            "as plain text, with no tool calls.",
         });
         continue;
       }
@@ -110,11 +143,10 @@ export async function runAgentLoop(
       state.toolCallsUsed += 1;
       emit({ type: "tool", name: call.name, status: "started" });
       const outcome = await deps.tools.execute(call.name, call.input);
-      state.context.push({ kind: "tool_call", name: call.name, input: call.input });
-      state.context.push({
-        kind: "tool_result",
+      state.messages.push({
+        role: "tool",
+        tool_call_id: call.toolUseId,
         name: call.name,
-        ok: outcome.ok,
         content: JSON.stringify(outcome.ok ? outcome.result : { error: outcome.error }),
       });
       emit({ type: "tool", name: call.name, status: "completed" });

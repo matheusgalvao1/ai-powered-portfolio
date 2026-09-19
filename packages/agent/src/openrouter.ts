@@ -78,9 +78,11 @@ function parseToolInput(inputJson: string): unknown {
   }
 }
 
-// The real StepFn: one streaming OpenRouter Chat Completions call. OpenRouter
-// normalizes tool calls across providers, so this adapter keeps the rest of the
-// agent loop independent from provider-specific message formats.
+// The real StepFn: one streaming OpenRouter Chat Completions call with the
+// native message array (history, this turn's request with any attachment
+// content parts, and accumulated tool calls/results). OpenRouter normalizes
+// tool calls across providers, so the rest of the agent loop stays
+// independent from provider-specific message formats.
 export function createOpenRouterStep(options: OpenRouterOptions): StepFn {
   if (!options.apiKey.trim()) {
     throw new Error("OPENROUTER_API_KEY is required");
@@ -97,7 +99,7 @@ export function createOpenRouterStep(options: OpenRouterOptions): StepFn {
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
   const endpoint = `${baseUrl}/chat/completions`;
 
-  return async ({ prompt, onToken, onThinking }) => {
+  return async ({ messages, onToken, onThinking }) => {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${options.apiKey}`,
       "Content-Type": "application/json",
@@ -117,7 +119,7 @@ export function createOpenRouterStep(options: OpenRouterOptions): StepFn {
         model: options.modelId,
         messages: [
           { role: "system", content: options.systemPrompt },
-          { role: "user", content: prompt },
+          ...messages,
         ],
         tools,
         tool_choice: "auto",

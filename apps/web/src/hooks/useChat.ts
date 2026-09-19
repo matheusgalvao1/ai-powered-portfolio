@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChatSource, ConversationMessage } from "@portfolio/shared";
+import type { ChatAttachment, ConversationMessage } from "@portfolio/shared";
 import {
   ChatRequestSchema,
   ChatStreamEventSchema,
@@ -12,13 +12,22 @@ import { API_BASE_URL, API_KEY } from "../lib/apiConfig.js";
 // reasoning tokens, no tool arguments or results).
 export type UiActivity = { kind: "thinking" | "tool"; label: string } | null;
 
+// Attachments keep their dataUrl only for the live session so previews render;
+// persistence strips it to stay within the localStorage quota.
+export type UiMessageAttachment = {
+  id: string;
+  name: string;
+  mimeType: string;
+  dataUrl?: string;
+};
+
 export type UiMessage = {
   id: string;
   role: "user" | "assistant" | "error";
   text: string;
   status: "pending" | "streaming" | "done" | "error";
   activity?: UiActivity;
-  sources?: ChatSource[];
+  attachments?: UiMessageAttachment[];
 };
 
 const SESSION_STORAGE_KEY = "sessionId";
@@ -190,22 +199,23 @@ export function useChat() {
     };
   }, [welcomeVersion]);
 
-  const appendSource = useCallback((id: string, source: ChatSource) => {
-    setMessages((prev) =>
-      prev.map((message) =>
-        message.id === id
-          ? { ...message, sources: [...(message.sources ?? []), source] }
-          : message,
-      ),
-    );
-  }, []);
-
   useEffect(() => {
     try {
       localStorage.setItem(
         CONVERSATION_STORAGE_KEY,
         JSON.stringify({
-          messages: trimIncompleteTurn(messages),
+          messages: trimIncompleteTurn(messages).map((message) =>
+            message.attachments
+              ? {
+                  ...message,
+                  attachments: message.attachments.map(({ id, name, mimeType }) => ({
+                    id,
+                    name,
+                    mimeType,
+                  })),
+                }
+              : message,
+          ),
           conversation: conversationRef.current,
         }),
       );
@@ -215,7 +225,7 @@ export function useChat() {
   }, [messages]);
 
   const sendMessage = useCallback(
-    async (raw: string) => {
+    async (raw: string, attachments: ChatAttachment[] = []) => {
       const text = raw.trim();
       if (!text) {
         return;
@@ -226,6 +236,12 @@ export function useChat() {
         role: "user",
         text,
         status: "done",
+        attachments: attachments.map(({ id, name, mimeType, data }) => ({
+          id,
+          name,
+          mimeType,
+          dataUrl: `data:${mimeType};base64,${data}`,
+        })),
       };
       const assistantId = crypto.randomUUID();
       const assistantPlaceholder: UiMessage = {
@@ -245,6 +261,7 @@ export function useChat() {
           message: text,
           sessionId: sessionIdRef.current,
           conversation: conversationRef.current,
+          attachments,
         });
 
         const response = await fetch(`${API_BASE_URL}/chat`, {
@@ -313,9 +330,6 @@ export function useChat() {
                       : null,
                 });
                 break;
-              case "source":
-                appendSource(assistantId, event.source);
-                break;
               case "complete":
                 conversationRef.current = event.conversation;
                 updateMessage(assistantId, { status: "done", activity: null });
@@ -343,7 +357,7 @@ export function useChat() {
         setIsSending(false);
       }
     },
-    [updateMessage, appendSource],
+    [updateMessage],
   );
 
   const resetConversation = useCallback(() => {

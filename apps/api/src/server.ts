@@ -5,7 +5,6 @@ import express from "express";
 import { createPortfolioAgent } from "./agent.js";
 import { buildSystemPrompt } from "./prompt.js";
 import { loadPortfolioData } from "./portfolio.js";
-import { extractKnowledgeSources } from "./sources.js";
 import { SessionRecorder } from "./sessionRecorder.js";
 import { createChatService } from "./services/chatService.js";
 import { healthHandler } from "./handlers/health.js";
@@ -41,7 +40,6 @@ const agent = createPortfolioAgent({
   maxIterations: agentConfig.maxIterations,
   maxToolCalls: agentConfig.maxToolCalls,
   portfolio,
-  validSources: extractKnowledgeSources(knowledgeBase),
 });
 
 const recorder = new SessionRecorder({
@@ -51,7 +49,8 @@ const chatService = createChatService({ agent, recorder });
 const rateLimitMiddleware = createRateLimitMiddleware();
 
 const app = express();
-app.use(express.json());
+// Inline base64 attachments: worst case 4 files x 3 MiB raw ~= 16 MiB of JSON.
+app.use(express.json({ limit: "20mb" }));
 app.use(corsMiddleware);
 
 app.get("/health", healthHandler);

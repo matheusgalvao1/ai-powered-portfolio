@@ -4,6 +4,7 @@ import {
   runAgentLoop,
   type AgentState,
   type EmitFn,
+  type UserAttachment,
 } from "@portfolio/agent";
 import {
   createGetContactInformationTool,
@@ -11,7 +12,7 @@ import {
   createToolRegistry,
   type PortfolioData,
 } from "@portfolio/tools";
-import type { ChatSource, ConversationMessage } from "@portfolio/shared";
+import type { ConversationMessage } from "@portfolio/shared";
 
 type PortfolioAgentOptions = {
   systemPrompt: string;
@@ -24,13 +25,13 @@ type PortfolioAgentOptions = {
   maxIterations: number;
   maxToolCalls: number;
   portfolio: PortfolioData;
-  validSources: ChatSource[];
 };
 
 export type PortfolioAgent = {
   run(
     message: string,
     conversation: ConversationMessage[],
+    attachments: UserAttachment[],
     emit: EmitFn,
   ): Promise<AgentState>;
 };
@@ -53,13 +54,12 @@ export function createPortfolioAgent(options: PortfolioAgentOptions): PortfolioA
   });
 
   return {
-    run(message, conversation, emit) {
+    run(message, conversation, attachments, emit) {
       return runAgentLoop(
-        createInitialState(message, conversation),
+        createInitialState(message, conversation, attachments),
         {
           step,
           tools: registry,
-          validSources: options.validSources,
           maxIterations: options.maxIterations,
           maxToolCalls: options.maxToolCalls,
         },

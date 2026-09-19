@@ -140,6 +140,35 @@ body {
   color: var(--error);
 }
 
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.message-attachment-image {
+  max-width: 180px;
+  max-height: 180px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.message-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 220px;
+  padding: 0.35rem 0.6rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .message p {
   margin: 0.6rem 0;
 }
@@ -263,16 +292,109 @@ body {
   line-height: 1.2;
 }
 
-.message-sources {
-  margin-top: 0.6rem;
-  color: var(--text-faint);
-  font-size: 0.8125rem;
-}
-
 .composer {
   display: flex;
+  flex-direction: column;
   gap: 0.5rem;
   padding: 3rem 0 0;
+}
+
+.composer-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.composer-file-input {
+  display: none;
+}
+
+.composer-attach {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.composer-attach:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--bg-input-focus);
+}
+
+.composer-attach:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.composer-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.composer-attachment {
+  position: relative;
+  display: inline-flex;
+}
+
+.composer-attachment-image {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.composer-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 220px;
+  padding: 0.55rem 0.75rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composer-attachment-remove {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.composer-attachment-remove:hover {
+  color: var(--text);
+}
+
+.composer-error {
+  color: var(--error);
+  font-size: 0.8125rem;
 }
 
 .composer-input {

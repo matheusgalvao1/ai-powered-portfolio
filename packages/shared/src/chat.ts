@@ -9,22 +9,54 @@ export const ConversationMessageSchema = z.object({
 });
 export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
 
+// Attachments are base64 data URLs sent inline in the request body. Images
+// and PDFs become multimodal content parts (they need a vision-capable
+// model); text files are inlined into the prompt and work with any model.
+export const MAX_ATTACHMENT_FILES = 4;
+export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+export const MAX_ATTACHMENT_BASE64_CHARS = 4_300_000;
+export const ALLOWED_ATTACHMENT_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+];
+
+export function isAllowedAttachmentType(mimeType: string): boolean {
+  return ALLOWED_ATTACHMENT_MIME_TYPES.includes(mimeType);
+}
+
+const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
+
+export const ChatAttachmentSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().trim().min(1).max(200),
+  mimeType: z.string().refine(isAllowedAttachmentType, "unsupported attachment type"),
+  data: z
+    .string()
+    .max(MAX_ATTACHMENT_BASE64_CHARS, "attachment is too large")
+    .refine(
+      (data) => data.length % 4 === 0 && BASE64_PATTERN.test(data),
+      "attachment data must be base64",
+    )
+    .refine(
+      (data) => (data.length * 3) / 4 <= MAX_ATTACHMENT_BYTES,
+      "attachment is too large",
+    ),
+});
+export type ChatAttachment = z.infer<typeof ChatAttachmentSchema>;
+
 export const ChatRequestSchema = z.object({
   message: z.string().trim().min(1, "message is required"),
   sessionId: z.string().optional(),
   conversation: z.array(ConversationMessageSchema).optional().default([]),
+  attachments: z.array(ChatAttachmentSchema).max(MAX_ATTACHMENT_FILES).optional().default([]),
 });
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
-
-// A citation to a knowledge-base section, carried by the final_answer
-// control tool and validated server-side against known sections before it
-// is ever emitted.
-export const ChatSourceSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  section: z.string().optional(),
-});
-export type ChatSource = z.infer<typeof ChatSourceSchema>;
 
 export const ChatStreamEventSchema = z.discriminatedUnion("type", [
   z.object({
@@ -49,10 +81,6 @@ export const ChatStreamEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("thinking"),
     status: z.enum(["started", "stopped"]),
-  }),
-  z.object({
-    type: z.literal("source"),
-    source: ChatSourceSchema,
   }),
   z.object({
     type: z.literal("complete"),

@@ -28,16 +28,18 @@ afterEach(() => {
 });
 
 describe("createOpenRouterStep", () => {
-  it("streams text and reasoning events while ignoring SSE comments", async () => {
-    const fetchMock = vi.fn(async () =>
-      responseFor(
+  it("streams text and reasoning events while sending the native message array", async () => {
+    let requestBody: string | undefined;
+    const fetchMock = vi.fn(async (_input: unknown, init?: { body?: string }) => {
+      requestBody = init?.body;
+      return responseFor(
         ": OPENROUTER PROCESSING\n\n" +
           chunk({ choices: [{ delta: { reasoning: "plan" } }] }) +
           chunk({ choices: [{ delta: { content: "Answer" } }] }) +
           chunk({ choices: [{ delta: {}, finish_reason: "stop" }] }) +
           "data: [DONE]\n\n",
-      ),
-    );
+      );
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     const tokens: string[] = [];
@@ -50,7 +52,11 @@ describe("createOpenRouterStep", () => {
     });
 
     const result = await step({
-      prompt: "Question",
+      messages: [
+        { role: "user", content: "First question" },
+        { role: "assistant", content: "First answer" },
+        { role: "user", content: "Question" },
+      ],
       onToken: (value) => tokens.push(value),
       onThinking: (status) => thinking.push(status),
     });
@@ -58,7 +64,16 @@ describe("createOpenRouterStep", () => {
     expect(result).toMatchObject({ text: "Answer", stopReason: "stop", toolUses: [] });
     expect(tokens).toEqual(["Answer"]);
     expect(thinking).toEqual(["started", "stopped"]);
-    expect(fetchMock).toHaveBeenCalledOnce();
+
+    const body = JSON.parse(requestBody ?? "{}") as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    expect(body.messages).toEqual([
+      { role: "system", content: "Be helpful." },
+      { role: "user", content: "First question" },
+      { role: "assistant", content: "First answer" },
+      { role: "user", content: "Question" },
+    ]);
   });
 
   it("assembles streamed tool-call arguments", async () => {
@@ -104,7 +119,7 @@ describe("createOpenRouterStep", () => {
     });
 
     const result = await step({
-      prompt: "List projects",
+      messages: [{ role: "user", content: "List projects" }],
       onToken: () => {},
       onThinking: () => {},
     });
@@ -117,5 +132,58 @@ describe("createOpenRouterStep", () => {
         input: { limit: 5 },
       },
     ]);
+  });
+
+  it("forwards multimodal content parts from user messages verbatim", async () => {
+    let requestBody: string | undefined;
+    const fetchMock = vi.fn(async (_input: unknown, init?: { body?: string }) => {
+      requestBody = init?.body;
+      return responseFor(
+        chunk({ choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] }) +
+          "data: [DONE]\n\n",
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const step = createOpenRouterStep({
+      apiKey: "test-key",
+      modelId: "z-ai/glm-5",
+      systemPrompt: "Be helpful.",
+      toolSpecs: [],
+    });
+
+    await step({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Describe the attachments" },
+            { type: "image_url", image_url: { url: "data:image/png;base64,aGVsbG8=" } },
+            {
+              type: "file",
+              file: { filename: "doc.pdf", file_data: "data:application/pdf;base64,aGVsbG8=" },
+            },
+          ],
+        },
+      ],
+      onToken: () => {},
+      onThinking: () => {},
+    });
+
+    const body = JSON.parse(requestBody ?? "{}") as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    const userContent = body.messages[1]?.content as Array<Record<string, unknown>>;
+
+    expect(Array.isArray(userContent)).toBe(true);
+    expect(userContent[0]).toEqual({ type: "text", text: "Describe the attachments" });
+    expect(userContent[1]).toEqual({
+      type: "image_url",
+      image_url: { url: "data:image/png;base64,aGVsbG8=" },
+    });
+    expect(userContent[2]).toEqual({
+      type: "file",
+      file: { filename: "doc.pdf", file_data: "data:application/pdf;base64,aGVsbG8=" },
+    });
   });
 });

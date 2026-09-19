@@ -14,10 +14,10 @@ apps/
 packages/
   shared/   Wire-contract types (ChatRequest, ChatStreamEvent), Zod schemas, SSE helpers
   config/   Model/server/CORS/agent-limit configuration, read from env
-  agent/    State-reducer agent loop: owned context serialization, final_answer
-            termination semaphore, nudge handling, OpenRouter streaming step
+  agent/    State-reducer agent loop: native multi-turn messages, plain-text
+            termination, OpenRouter streaming step
   tools/    Tool registry + the structured portfolio tools (list_projects,
-            get_contact_information) and the final_answer control tool
+            get_contact_information)
 knowledge/
   knowledge-base.md        Generated locally from Notion — not committed (see below)
   portfolio.json           Structured data the agent's tools read — not committed
