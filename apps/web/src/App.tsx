@@ -2,7 +2,7 @@ import { ChatPanel } from "./components/ChatPanel.js";
 
 export function App() {
   return (
-    <main className="page">
+    <main className="app">
       <ChatPanel />
     </main>
   );

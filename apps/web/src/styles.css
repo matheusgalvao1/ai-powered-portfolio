@@ -38,10 +38,110 @@ body {
   overflow-x: hidden;
 }
 
-.page {
+.app {
+  height: 100dvh;
+}
+
+.sidebar-toggle {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    left 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.sidebar-toggle.open {
+  left: calc(260px - 3rem);
+}
+
+.sidebar-toggle:hover {
+  color: var(--text);
+  background: var(--bg-input);
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 260px;
+  z-index: 2;
+  padding: 4rem 0.75rem 1rem;
+  overflow-y: auto;
+  visibility: hidden;
+}
+
+.sidebar.open {
+  visibility: visible;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.sidebar-item::before {
+  content: "";
+  flex-shrink: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.sidebar-item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-item:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg-input);
+}
+
+.sidebar-item.active {
+  color: var(--text);
+  background: var(--bg-input);
+}
+
+.sidebar-empty {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  color: var(--text-faint);
+  font-size: 0.8125rem;
+}
+
+.chat {
+  height: 100dvh;
   max-width: 900px;
   margin: 0 auto;
-  height: 100dvh;
   padding: 3.5rem 1.5rem;
   display: flex;
   flex-direction: column;
@@ -506,7 +606,7 @@ body {
 }
 
 @media (max-width: 480px) {
-  .page {
+  .chat {
     padding: 1.5rem 0.75rem;
   }
 }

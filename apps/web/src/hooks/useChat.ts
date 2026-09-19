@@ -6,6 +6,15 @@ import {
   parseSseFrames,
 } from "@portfolio/shared";
 import { API_BASE_URL, API_KEY } from "../lib/apiConfig.js";
+import {
+  clearActive,
+  loadActive,
+  loadConversation,
+  loadIndex,
+  saveActive,
+  upsertIndex,
+  type ConversationSummary,
+} from "../lib/conversationStore.js";
 
 // What the assistant is visibly doing while a turn is in flight — shown as
 // a label next to the thinking orb, never the underlying content (no
@@ -30,8 +39,6 @@ export type UiMessage = {
   attachments?: UiMessageAttachment[];
 };
 
-const SESSION_STORAGE_KEY = "sessionId";
-const CONVERSATION_STORAGE_KEY = "conversation";
 const UNAVAILABLE_MESSAGE =
   "The chatbot is temporarily unavailable. Please try again.";
 const STREAM_CHARACTER_DELAY_MS = 4;
@@ -59,10 +66,9 @@ function toolLabel(name: string): string {
   return TOOL_LABELS[name] ?? `Using ${name}`;
 }
 
-type PersistedConversation = {
-  messages: UiMessage[];
-  conversation: ConversationMessage[];
-};
+function titleFromMessage(text: string): string {
+  return text.length > 48 ? `${text.slice(0, 48).trimEnd()}…` : text;
+}
 
 // A turn is only durable once every message in it finished. If the page dies
 // mid-stream, the trailing turn is dropped here so what the user sees after a
@@ -90,45 +96,8 @@ function trimIncompleteTurn(messages: UiMessage[]): UiMessage[] {
   return [];
 }
 
-function loadPersistedConversation(): PersistedConversation | null {
-  try {
-    const raw = localStorage.getItem(CONVERSATION_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-
-    const parsed: unknown = JSON.parse(raw);
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      !Array.isArray((parsed as PersistedConversation).messages) ||
-      !Array.isArray((parsed as PersistedConversation).conversation)
-    ) {
-      return null;
-    }
-
-    const { messages, conversation } = parsed as PersistedConversation;
-    const finishedMessages = messages.filter(
-      (message) => message.status === "done" || message.status === "error",
-    );
-    if (finishedMessages.length === 0) {
-      return null;
-    }
-
-    return {
-      messages: finishedMessages.map((message) => ({
-        ...message,
-        activity: null,
-      })),
-      conversation,
-    };
-  } catch {
-    return null;
-  }
-}
-
 export function useChat() {
-  const [restored] = useState(loadPersistedConversation);
+  const [restored] = useState(loadActive);
   const [messages, setMessages] = useState<UiMessage[]>(() =>
     restored
       ? restored.messages
@@ -144,11 +113,14 @@ export function useChat() {
   const [welcomeVersion, setWelcomeVersion] = useState(restored ? 1 : 0);
   const [isSending, setIsSending] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const sessionIdRef = useRef<string | undefined>(
-    localStorage.getItem(SESSION_STORAGE_KEY) ?? undefined,
+  const [activeMeta, setActiveMeta] = useState<{ id: string; title: string } | null>(
+    () => (restored ? { id: restored.id, title: restored.title } : null),
   );
+  const activeMetaRef = useRef<{ id: string; title: string } | null>(activeMeta);
+  const [conversations, setConversations] = useState<ConversationSummary[]>(loadIndex);
+  const sessionIdRef = useRef<string | undefined>(restored?.sessionId);
   const conversationRef = useRef<ConversationMessage[]>(
-    restored ? restored.conversation : [welcomeMessage],
+    restored ? restored.transcript : [welcomeMessage],
   );
 
   const updateMessage = useCallback((id: string, patch: Partial<UiMessage>) => {
@@ -201,25 +173,30 @@ export function useChat() {
   }, [welcomeVersion]);
 
   useEffect(() => {
+    const meta = activeMetaRef.current;
+    if (!meta) {
+      return;
+    }
+
     try {
-      localStorage.setItem(
-        CONVERSATION_STORAGE_KEY,
-        JSON.stringify({
-          messages: trimIncompleteTurn(messages).map((message) =>
-            message.attachments
-              ? {
-                  ...message,
-                  attachments: message.attachments.map(({ id, name, mimeType }) => ({
-                    id,
-                    name,
-                    mimeType,
-                  })),
-                }
-              : message,
-          ),
-          conversation: conversationRef.current,
-        }),
-      );
+      saveActive({
+        id: meta.id,
+        title: meta.title,
+        sessionId: sessionIdRef.current,
+        messages: trimIncompleteTurn(messages).map((message) =>
+          message.attachments
+            ? {
+                ...message,
+                attachments: message.attachments.map(({ id, name, mimeType }) => ({
+                  id,
+                  name,
+                  mimeType,
+                })),
+              }
+            : message,
+        ),
+        transcript: conversationRef.current,
+      });
     } catch (error) {
       console.error(error);
     }
@@ -231,6 +208,16 @@ export function useChat() {
       if (!text) {
         return;
       }
+
+      // A conversation is born on its first user message; that message
+      // becomes its title in the sidebar index.
+      let meta = activeMetaRef.current;
+      if (!meta) {
+        meta = { id: crypto.randomUUID(), title: titleFromMessage(text) };
+        activeMetaRef.current = meta;
+        setActiveMeta(meta);
+      }
+      setConversations(upsertIndex(meta));
 
       const userMessage: UiMessage = {
         id: crypto.randomUUID(),
@@ -306,7 +293,6 @@ export function useChat() {
             switch (event.type) {
               case "start":
                 sessionIdRef.current = event.sessionId;
-                localStorage.setItem(SESSION_STORAGE_KEY, event.sessionId);
                 break;
               case "token":
                 for (const character of event.value) {
@@ -415,10 +401,41 @@ export function useChat() {
     ]);
     conversationRef.current = [welcomeMessage];
     setWelcomeVersion((version) => version + 1);
+    activeMetaRef.current = null;
+    setActiveMeta(null);
     sessionIdRef.current = undefined;
-    localStorage.removeItem(SESSION_STORAGE_KEY);
-    localStorage.removeItem(CONVERSATION_STORAGE_KEY);
+    // The previous conversation stays in the index and its payload stays on
+    // disk — New chat starts a fresh one without erasing history.
+    clearActive();
   }, []);
 
-  return { messages, sendMessage, isSending, stop, resetConversation };
+  const switchConversation = useCallback((id: string) => {
+    // Never switch away from a turn that is still streaming.
+    if (abortControllerRef.current) {
+      return;
+    }
+
+    const stored = loadConversation(id);
+    if (!stored) {
+      return;
+    }
+
+    const meta = { id: stored.id, title: stored.title };
+    activeMetaRef.current = meta;
+    setActiveMeta(meta);
+    sessionIdRef.current = stored.sessionId;
+    conversationRef.current = stored.transcript;
+    setMessages(stored.messages.map((message) => ({ ...message, activity: null })));
+  }, []);
+
+  return {
+    messages,
+    sendMessage,
+    isSending,
+    stop,
+    resetConversation,
+    conversations,
+    activeConversationId: activeMeta?.id ?? null,
+    switchConversation,
+  };
 }

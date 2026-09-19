@@ -4,6 +4,7 @@ import type { ChatAttachment } from "@portfolio/shared";
 import { useChat } from "../hooks/useChat.js";
 import { Message } from "./Message.js";
 import { Composer } from "./Composer.js";
+import { Sidebar } from "./Sidebar.js";
 
 // Within this distance of the bottom the user counts as "following" the
 // stream; an exact 0 is unreliable because content grows between scroll
@@ -11,7 +12,16 @@ import { Composer } from "./Composer.js";
 const STICK_THRESHOLD_PX = 24;
 
 export function ChatPanel() {
-  const { messages, sendMessage, isSending, stop, resetConversation } = useChat();
+  const {
+    messages,
+    sendMessage,
+    isSending,
+    stop,
+    resetConversation,
+    conversations,
+    activeConversationId,
+    switchConversation,
+  } = useChat();
   const messagesRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   // The scrollTop the panel last assigned itself; a scroll event still at
@@ -121,6 +131,14 @@ export function ChatPanel() {
     resetConversation();
   };
 
+  const handleSelectConversation = (id: string) => {
+    stickToBottomRef.current = true;
+    switchConversation(id);
+  };
+
+  // Collapsed by default: each visit starts with the history rail closed.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   // The orb parks beside the most recent real assistant message; interrupt
   // and error tombstones never host it.
   let orbIndex = -1;
@@ -132,7 +150,43 @@ export function ChatPanel() {
   }
 
   return (
-    <section className="chat" aria-label="Chat">
+    <>
+      <button
+        type="button"
+        className={`sidebar-toggle${sidebarOpen ? " open" : ""}`}
+        aria-label="Toggle conversations"
+        aria-expanded={sidebarOpen}
+        onClick={() => setSidebarOpen((open) => !open)}
+      >
+        {sidebarOpen ? (
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M10 3 5 8l5 5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M6 3l5 5-5 5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </button>
+      <Sidebar
+        open={sidebarOpen}
+        conversations={conversations}
+        activeId={activeConversationId}
+        onSelect={handleSelectConversation}
+      />
+      <section className="chat" aria-label="Chat">
       <div
         className={`messages-viewport${fadeEdges.top ? " has-top-fade" : ""}${
           fadeEdges.bottom ? " has-bottom-fade" : ""
@@ -164,5 +218,6 @@ export function ChatPanel() {
         onStop={stop}
       />
     </section>
+    </>
   );
 }
