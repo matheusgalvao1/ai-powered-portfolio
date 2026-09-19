@@ -4,7 +4,7 @@ import { Message } from "./Message.js";
 import { Composer } from "./Composer.js";
 
 export function ChatPanel() {
-  const { messages, sendMessage, isSending } = useChat();
+  const { messages, sendMessage, isSending, resetConversation } = useChat();
   const messagesRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const [fadeEdges, setFadeEdges] = useState({ top: false, bottom: false });
@@ -78,7 +78,11 @@ export function ChatPanel() {
           ))}
         </div>
       </div>
-      <Composer disabled={isSending} onSubmit={sendMessage} />
+      <Composer
+        disabled={isSending}
+        onSubmit={sendMessage}
+        onNewChat={resetConversation}
+      />
     </section>
   );
 }
