@@ -1,16 +1,19 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 export function Composer({
   disabled,
+  canReset,
   onSubmit,
   onNewChat,
 }: {
   disabled: boolean;
+  canReset: boolean;
   onSubmit: (message: string) => void;
   onNewChat: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [hasText, setHasText] = useState(false);
 
   useEffect(() => {
     if (!disabled) {
@@ -24,6 +27,7 @@ export function Composer({
     onSubmit(value);
     if (inputRef.current) {
       inputRef.current.value = "";
+      setHasText(false);
     }
   };
 
@@ -35,7 +39,7 @@ export function Composer({
         aria-label="New chat"
         title="New chat"
         onClick={onNewChat}
-        disabled={disabled}
+        disabled={disabled || !canReset}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path
@@ -62,8 +66,16 @@ export function Composer({
         autoComplete="off"
         autoFocus
         disabled={disabled}
+        onInput={(event) =>
+          setHasText(event.currentTarget.value.trim().length > 0)
+        }
       />
-      <button className="composer-send" type="submit" aria-label="Send" disabled={disabled}>
+      <button
+        className="composer-send"
+        type="submit"
+        aria-label="Send"
+        disabled={disabled || !hasText}
+      >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path
             d="M8 13V3M8 3L3.5 7.5M8 3L12.5 7.5"

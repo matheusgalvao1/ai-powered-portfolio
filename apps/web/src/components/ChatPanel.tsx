@@ -80,6 +80,7 @@ export function ChatPanel() {
       </div>
       <Composer
         disabled={isSending}
+        canReset={messages.length > 1}
         onSubmit={sendMessage}
         onNewChat={resetConversation}
       />
