@@ -99,7 +99,7 @@ export function createOpenRouterStep(options: OpenRouterOptions): StepFn {
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
   const endpoint = `${baseUrl}/chat/completions`;
 
-  return async ({ messages, onToken, onThinking }) => {
+  return async ({ messages, signal, onToken, onThinking }) => {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${options.apiKey}`,
       "Content-Type": "application/json",
@@ -115,6 +115,7 @@ export function createOpenRouterStep(options: OpenRouterOptions): StepFn {
     const response = await fetch(endpoint, {
       method: "POST",
       headers,
+      signal,
       body: JSON.stringify({
         model: options.modelId,
         messages: [

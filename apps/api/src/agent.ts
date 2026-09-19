@@ -33,6 +33,7 @@ export type PortfolioAgent = {
     conversation: ConversationMessage[],
     attachments: UserAttachment[],
     emit: EmitFn,
+    signal?: AbortSignal,
   ): Promise<AgentState>;
 };
 
@@ -54,7 +55,7 @@ export function createPortfolioAgent(options: PortfolioAgentOptions): PortfolioA
   });
 
   return {
-    run(message, conversation, attachments, emit) {
+    run(message, conversation, attachments, emit, signal) {
       return runAgentLoop(
         createInitialState(message, conversation, attachments),
         {
@@ -62,6 +63,7 @@ export function createPortfolioAgent(options: PortfolioAgentOptions): PortfolioA
           tools: registry,
           maxIterations: options.maxIterations,
           maxToolCalls: options.maxToolCalls,
+          signal,
         },
         emit,
       );

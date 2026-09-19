@@ -89,6 +89,7 @@ export async function runAgentLoop(
 
     const response = await deps.step({
       messages: state.messages,
+      signal: deps.signal,
       onToken: (value) => emit({ type: "token", value }),
       onThinking: (status) => emit({ type: "thinking", status }),
     });

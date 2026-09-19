@@ -140,6 +140,25 @@ body {
   color: var(--error);
 }
 
+.message.interrupted {
+  display: flex;
+  align-items: center;
+  color: var(--text-faint);
+}
+
+.message.interrupted::before,
+.message.interrupted::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.message-interrupted-label {
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+}
+
 .message-attachments {
   display: flex;
   flex-wrap: wrap;

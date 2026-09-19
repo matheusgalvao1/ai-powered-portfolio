@@ -19,19 +19,27 @@ function ActivityIndicator({
 
 export function Message({
   message,
-  isLast,
+  hasOrb,
 }: {
   message: UiMessage;
-  isLast: boolean;
+  hasOrb: boolean;
 }) {
   const { role, text, status, activity } = message;
+
+  if (role === "interrupted") {
+    return (
+      <div className="message interrupted">
+        <span className="message-interrupted-label">Interrupted</span>
+      </div>
+    );
+  }
 
   if (role === "assistant") {
     const busy = status === "pending" || status === "streaming";
 
     return (
-      <div className={`message assistant${isLast ? " last" : ""}`}>
-        {isLast ? (
+      <div className={`message assistant${hasOrb ? " last" : ""}`}>
+        {hasOrb ? (
           <ActivityIndicator
             label={busy ? activity?.label : undefined}
             state={busy ? "solving" : "connecting"}

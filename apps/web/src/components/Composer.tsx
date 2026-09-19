@@ -46,11 +46,13 @@ export function Composer({
   canReset,
   onSubmit,
   onNewChat,
+  onStop,
 }: {
   disabled: boolean;
   canReset: boolean;
   onSubmit: (message: string, attachments: ChatAttachment[]) => void;
   onNewChat: () => void;
+  onStop: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -230,22 +232,36 @@ export function Composer({
           disabled={disabled}
           onInput={(event) => setHasText(event.currentTarget.value.trim().length > 0)}
         />
-        <button
-          className="composer-send"
-          type="submit"
-          aria-label="Send"
-          disabled={disabled || !hasText}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path
-              d="M8 13V3M8 3L3.5 7.5M8 3L12.5 7.5"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+        {disabled ? (
+          <button
+            className="composer-send"
+            type="button"
+            aria-label="Stop"
+            title="Stop"
+            onClick={onStop}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <rect x="3.5" y="3.5" width="9" height="9" rx="1.5" fill="currentColor" />
+            </svg>
+          </button>
+        ) : (
+          <button
+            className="composer-send"
+            type="submit"
+            aria-label="Send"
+            disabled={!hasText}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M8 13V3M8 3L3.5 7.5M8 3L12.5 7.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        )}
       </div>
     </form>
   );

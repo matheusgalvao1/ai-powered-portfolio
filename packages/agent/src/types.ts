@@ -64,6 +64,7 @@ export type StepResult = {
 // scripted fake; the real implementation streams from OpenRouter.
 export type StepFn = (args: {
   messages: AgentMessage[];
+  signal?: AbortSignal | undefined;
   onToken: (value: string) => void;
   onThinking: (status: "started" | "stopped") => void;
 }) => Promise<StepResult>;
@@ -73,6 +74,10 @@ export type AgentLoopDeps = {
   tools: ToolRegistry;
   maxIterations: number;
   maxToolCalls: number;
+  // Aborted when the HTTP client for this turn disconnects, so a cancelled
+  // generation stops burning tokens upstream instead of running to completion
+  // into a closed socket.
+  signal?: AbortSignal | undefined;
 };
 
 export type EmitFn = (event: ChatStreamEvent) => void;

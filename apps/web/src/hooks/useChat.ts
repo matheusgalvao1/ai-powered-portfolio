@@ -23,7 +23,7 @@ export type UiMessageAttachment = {
 
 export type UiMessage = {
   id: string;
-  role: "user" | "assistant" | "error";
+  role: "user" | "assistant" | "error" | "interrupted";
   text: string;
   status: "pending" | "streaming" | "done" | "error";
   activity?: UiActivity;
@@ -143,6 +143,7 @@ export function useChat() {
   );
   const [welcomeVersion, setWelcomeVersion] = useState(restored ? 1 : 0);
   const [isSending, setIsSending] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const sessionIdRef = useRef<string | undefined>(
     localStorage.getItem(SESSION_STORAGE_KEY) ?? undefined,
   );
@@ -255,6 +256,9 @@ export function useChat() {
       setIsSending(true);
 
       let assistantText = "";
+      let cancelled = false;
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
 
       try {
         const body = ChatRequestSchema.parse({
@@ -271,6 +275,7 @@ export function useChat() {
             ...(API_KEY ? { "X-Api-Key": API_KEY } : {}),
           },
           body: JSON.stringify(body),
+          signal: abortController.signal,
         });
 
         if (!response.ok || !response.body) {
@@ -346,19 +351,58 @@ export function useChat() {
           }
         }
       } catch (error) {
-        console.error(error);
-        updateMessage(assistantId, {
-          role: "error",
-          status: "error",
-          text: UNAVAILABLE_MESSAGE,
-          activity: null,
-        });
+        if (error instanceof Error && error.name === "AbortError") {
+          cancelled = true;
+        } else {
+          console.error(error);
+          updateMessage(assistantId, {
+            role: "error",
+            status: "error",
+            text: UNAVAILABLE_MESSAGE,
+            activity: null,
+          });
+        }
       } finally {
+        abortControllerRef.current = null;
+
+        if (cancelled) {
+          // The user stopped the turn: the partial answer is discarded and
+          // replaced by an "Interrupted" divider. The transcript records the
+          // question plus a stopped marker, so the next request tells the
+          // model the turn was cut off on purpose instead of leaving a
+          // dangling question it never answered.
+          updateMessage(assistantId, {
+            role: "interrupted",
+            text: "",
+            status: "done",
+            activity: null,
+          });
+
+          const attachmentNote =
+            attachments.length > 0
+              ? `\n\n[Attached files: ${attachments
+                  .map((attachment) => `${attachment.name} (${attachment.mimeType})`)
+                  .join(", ")}]`
+              : "";
+          conversationRef.current = [
+            ...conversationRef.current,
+            { role: "user", content: text + attachmentNote },
+            {
+              role: "assistant",
+              content: "[The user stopped this response before it was finished.]",
+            },
+          ];
+        }
+
         setIsSending(false);
       }
     },
     [updateMessage],
   );
+
+  const stop = useCallback(() => {
+    abortControllerRef.current?.abort();
+  }, []);
 
   const resetConversation = useCallback(() => {
     setMessages([
@@ -376,5 +420,5 @@ export function useChat() {
     localStorage.removeItem(CONVERSATION_STORAGE_KEY);
   }, []);
 
-  return { messages, sendMessage, isSending, resetConversation };
+  return { messages, sendMessage, isSending, stop, resetConversation };
 }

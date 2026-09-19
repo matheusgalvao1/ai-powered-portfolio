@@ -11,7 +11,7 @@ import { Composer } from "./Composer.js";
 const STICK_THRESHOLD_PX = 24;
 
 export function ChatPanel() {
-  const { messages, sendMessage, isSending, resetConversation } = useChat();
+  const { messages, sendMessage, isSending, stop, resetConversation } = useChat();
   const messagesRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   // The scrollTop the panel last assigned itself; a scroll event still at
@@ -121,6 +121,16 @@ export function ChatPanel() {
     resetConversation();
   };
 
+  // The orb parks beside the most recent real assistant message; interrupt
+  // and error tombstones never host it.
+  let orbIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i]?.role === "assistant") {
+      orbIndex = i;
+      break;
+    }
+  }
+
   return (
     <section className="chat" aria-label="Chat">
       <div
@@ -141,7 +151,7 @@ export function ChatPanel() {
             <Message
               key={message.id}
               message={message}
-              isLast={index === messages.length - 1}
+              hasOrb={index === orbIndex}
             />
           ))}
         </div>
@@ -151,6 +161,7 @@ export function ChatPanel() {
         canReset={messages.length > 1}
         onSubmit={handleSubmitMessage}
         onNewChat={handleNewChat}
+        onStop={stop}
       />
     </section>
   );

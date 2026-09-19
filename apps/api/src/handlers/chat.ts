@@ -27,11 +27,26 @@ export function createChatHandler({ chatService }: { chatService: ChatService })
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders();
 
+    // A client disconnect (stop button or navigation) aborts the upstream
+    // model call so the generation stops instead of running to completion
+    // into a dead socket.
+    const abortController = new AbortController();
+    res.on("close", () => abortController.abort());
+
     const emit = (event: ChatStreamEvent) => {
       res.write(formatSseEvent(event));
     };
 
-    await chatService.streamChat({ message, sessionId, conversation, attachments }, emit);
+    await chatService.streamChat(
+      {
+        message,
+        sessionId,
+        conversation,
+        attachments,
+        signal: abortController.signal,
+      },
+      emit,
+    );
 
     res.end();
   };

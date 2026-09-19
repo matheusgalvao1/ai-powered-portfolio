@@ -13,6 +13,7 @@ export type ChatService = {
       sessionId?: string;
       conversation?: ConversationMessage[];
       attachments?: ChatAttachment[];
+      signal?: AbortSignal;
     },
     emit: (event: ChatStreamEvent) => void,
   ): Promise<void>;
@@ -30,7 +31,7 @@ export function createChatService({
   recorder: SessionRecorder;
 }): ChatService {
   return {
-    async streamChat({ message, sessionId, conversation = [], attachments }, emit) {
+    async streamChat({ message, sessionId, conversation = [], attachments, signal }, emit) {
       // The client owns and sends its own sessionId and conversation history;
       // this service never looks either up, it only reads what was sent.
       const activeSessionId = sessionId || createSessionId();
@@ -39,7 +40,13 @@ export function createChatService({
       emit({ type: "start", requestId, sessionId: activeSessionId });
 
       try {
-        const result = await agent.run(message, conversation, toUserAttachments(attachments), emit);
+        const result = await agent.run(
+          message,
+          conversation,
+          toUserAttachments(attachments),
+          emit,
+          signal,
+        );
 
         if (result.status !== "complete") {
           // Iteration cap hit: a safe fallback error, never a half answer
@@ -76,6 +83,12 @@ export function createChatService({
           ],
         });
       } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          // The client cancelled the turn (stop button or navigation). The
+          // socket is gone, so there is nothing left to emit.
+          console.warn(`[chat] request ${requestId} aborted; generation cancelled`);
+          return;
+        }
         console.error(error);
         emit({
           type: "error",
