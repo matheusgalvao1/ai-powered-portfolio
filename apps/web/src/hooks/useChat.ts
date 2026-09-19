@@ -22,6 +22,7 @@ export type UiMessage = {
 };
 
 const SESSION_STORAGE_KEY = "sessionId";
+const CONVERSATION_STORAGE_KEY = "conversation";
 const UNAVAILABLE_MESSAGE =
   "The chatbot is temporarily unavailable. Please try again.";
 const STREAM_CHARACTER_DELAY_MS = 4;
@@ -49,21 +50,96 @@ function toolLabel(name: string): string {
   return TOOL_LABELS[name] ?? `Using ${name}`;
 }
 
+type PersistedConversation = {
+  messages: UiMessage[];
+  conversation: ConversationMessage[];
+};
+
+// A turn is only durable once every message in it finished. If the page dies
+// mid-stream, the trailing turn is dropped here so what the user sees after a
+// reload matches exactly what the model will remember.
+function trimIncompleteTurn(messages: UiMessage[]): UiMessage[] {
+  let inFlightIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message && (message.status === "pending" || message.status === "streaming")) {
+      inFlightIndex = i;
+      break;
+    }
+  }
+
+  if (inFlightIndex === -1) {
+    return messages;
+  }
+
+  for (let i = inFlightIndex; i >= 0; i -= 1) {
+    if (messages[i]?.role === "user") {
+      return messages.slice(0, i);
+    }
+  }
+
+  return [];
+}
+
+function loadPersistedConversation(): PersistedConversation | null {
+  try {
+    const raw = localStorage.getItem(CONVERSATION_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !Array.isArray((parsed as PersistedConversation).messages) ||
+      !Array.isArray((parsed as PersistedConversation).conversation)
+    ) {
+      return null;
+    }
+
+    const { messages, conversation } = parsed as PersistedConversation;
+    const finishedMessages = messages.filter(
+      (message) => message.status === "done" || message.status === "error",
+    );
+    if (finishedMessages.length === 0) {
+      return null;
+    }
+
+    return {
+      messages: finishedMessages.map((message) => ({
+        ...message,
+        activity: null,
+      })),
+      conversation,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function useChat() {
-  const [messages, setMessages] = useState<UiMessage[]>(() => [
-    {
-      id: "welcome",
-      role: "assistant",
-      text: "",
-      status: "streaming",
-    },
-  ]);
-  const [welcomeVersion, setWelcomeVersion] = useState(0);
+  const [restored] = useState(loadPersistedConversation);
+  const [messages, setMessages] = useState<UiMessage[]>(() =>
+    restored
+      ? restored.messages
+      : [
+          {
+            id: "welcome",
+            role: "assistant",
+            text: "",
+            status: "streaming",
+          },
+        ],
+  );
+  const [welcomeVersion, setWelcomeVersion] = useState(restored ? 1 : 0);
   const [isSending, setIsSending] = useState(false);
   const sessionIdRef = useRef<string | undefined>(
     localStorage.getItem(SESSION_STORAGE_KEY) ?? undefined,
   );
-  const conversationRef = useRef<ConversationMessage[]>([welcomeMessage]);
+  const conversationRef = useRef<ConversationMessage[]>(
+    restored ? restored.conversation : [welcomeMessage],
+  );
 
   const updateMessage = useCallback((id: string, patch: Partial<UiMessage>) => {
     setMessages((prev) =>
@@ -72,6 +148,16 @@ export function useChat() {
   }, []);
 
   useEffect(() => {
+    const welcomeIsAlreadyTyped = messages.some(
+      (message) =>
+        message.id === "welcome" &&
+        message.text === WELCOME_MESSAGE &&
+        message.status === "done",
+    );
+    if (welcomeIsAlreadyTyped) {
+      return;
+    }
+
     let characterIndex = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -113,6 +199,20 @@ export function useChat() {
       ),
     );
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        CONVERSATION_STORAGE_KEY,
+        JSON.stringify({
+          messages: trimIncompleteTurn(messages),
+          conversation: conversationRef.current,
+        }),
+      );
+    } catch (error) {
+      console.error(error);
+    }
+  }, [messages]);
 
   const sendMessage = useCallback(
     async (raw: string) => {
@@ -259,6 +359,7 @@ export function useChat() {
     setWelcomeVersion((version) => version + 1);
     sessionIdRef.current = undefined;
     localStorage.removeItem(SESSION_STORAGE_KEY);
+    localStorage.removeItem(CONVERSATION_STORAGE_KEY);
   }, []);
 
   return { messages, sendMessage, isSending, resetConversation };
