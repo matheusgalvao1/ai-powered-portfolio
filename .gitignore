@@ -4,6 +4,9 @@ dist/
 .turbo/
 data/
 
+# Mac files
+.DS_Store
+
 # Planning doc: not meant to ship with the public repo
 prd-ai-powered-portfolio.md
 
