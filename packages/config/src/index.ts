@@ -4,3 +4,4 @@ export * from "./cors.js";
 export * from "./rateLimit.js";
 export * from "./apiKey.js";
 export * from "./agent.js";
+export * from "./contact.js";

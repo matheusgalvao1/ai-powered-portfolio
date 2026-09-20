@@ -105,6 +105,53 @@ body {
   cursor: not-allowed;
 }
 
+.sidebar-social {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sidebar-social.open {
+  width: calc(260px - 2rem);
+}
+
+.social-link {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  text-decoration: none;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.sidebar-social.open .social-link {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 0 0.65rem;
+}
+
+.social-link:hover {
+  color: var(--text);
+  background: var(--bg-input);
+}
+
+.social-link-label {
+  font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .sidebar-toggle:hover {
   color: var(--text);
   background: var(--bg-input);

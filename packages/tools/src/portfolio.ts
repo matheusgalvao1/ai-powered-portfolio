@@ -5,11 +5,6 @@ import { z } from "zod";
 // until then it's a local file (knowledge/portfolio.json, gitignored like
 // the knowledge base) with a committed placeholder example.
 export const PortfolioDataSchema = z.object({
-  contact: z.object({
-    email: z.string(),
-    linkedin: z.string(),
-    github: z.string(),
-  }),
   projects: z
     .array(
       z.object({

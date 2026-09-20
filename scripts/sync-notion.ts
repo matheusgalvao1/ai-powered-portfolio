@@ -94,6 +94,10 @@ function blockToMarkdownLine(block: BlockObjectResponse): string | null {
 }
 
 function blockToLines(block: BlockWithChildren, depth = 0): string[] {
+  if (block.type === "table") {
+    return tableToLines(block);
+  }
+
   const line = blockToMarkdownLine(block);
   const indent = "  ".repeat(depth);
   const lines = line ? [`${indent}${line}`] : [];
@@ -101,6 +105,30 @@ function blockToLines(block: BlockWithChildren, depth = 0): string[] {
   for (const child of block.children ?? []) {
     lines.push(...blockToLines(child, depth + 1));
   }
+
+  return lines;
+}
+
+function tableToLines(block: BlockWithChildren): string[] {
+  const rows = (block.children ?? []).filter(
+    (child): child is BlockWithChildren & { type: "table_row" } =>
+      child.type === "table_row",
+  );
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const columnCount = rows[0]?.table_row.cells.length ?? 0;
+  const separator = `| ${Array.from({ length: columnCount }, () => "---").join(" | ")} |`;
+  const lines: string[] = [];
+
+  rows.forEach((row, index) => {
+    const cells = row.table_row.cells.map((cell) => richTextToMarkdown(cell) || " ");
+    lines.push(`| ${cells.join(" | ")} |`);
+    if (index === 0) {
+      lines.push(separator);
+    }
+  });
 
   return lines;
 }

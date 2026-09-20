@@ -5,6 +5,7 @@ import { useChat } from "../hooks/useChat.js";
 import { Message } from "./Message.js";
 import { Composer } from "./Composer.js";
 import { Sidebar } from "./Sidebar.js";
+import { SocialLinks } from "./SocialLinks.js";
 
 // Within this distance of the bottom the user counts as "following" the
 // stream; an exact 0 is unreliable because content grows between scroll
@@ -212,6 +213,7 @@ export function ChatPanel() {
         activeId={activeConversationId}
         onSelect={handleSelectConversation}
       />
+      <SocialLinks open={sidebarOpen} />
       <section className="chat" aria-label="Chat">
       <div
         className={`messages-viewport${fadeEdges.top ? " has-top-fade" : ""}${

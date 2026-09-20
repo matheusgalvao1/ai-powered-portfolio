@@ -9,10 +9,11 @@ import { SessionRecorder } from "./sessionRecorder.js";
 import { createChatService } from "./services/chatService.js";
 import { healthHandler } from "./handlers/health.js";
 import { createChatHandler } from "./handlers/chat.js";
+import { createContactHandler } from "./handlers/contact.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { apiKeyMiddleware } from "./middleware/apiKey.js";
 import { createRateLimitMiddleware } from "./middleware/rateLimit.js";
-import { agentConfig, modelConfig, serverConfig } from "@portfolio/config";
+import { agentConfig, contactConfig, modelConfig, serverConfig } from "@portfolio/config";
 
 const apiDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRootDir = join(apiDir, "../..");
@@ -54,6 +55,7 @@ app.use(express.json({ limit: "20mb" }));
 app.use(corsMiddleware);
 
 app.get("/health", healthHandler);
+app.get("/contact", createContactHandler({ contact: contactConfig }));
 app.post(
   "/chat",
   apiKeyMiddleware,

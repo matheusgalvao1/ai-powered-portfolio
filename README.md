@@ -20,10 +20,12 @@ packages/
             get_contact_information)
 knowledge/
   knowledge-base.md        Generated locally from Notion — not committed (see below)
+  notion-template.md       The expected Notion page structure for the sync — follow it
   portfolio.json           Structured data the agent's tools read — not committed
   portfolio.example.json   Committed placeholder to copy from
 scripts/
   sync-notion.ts      Pulls the knowledge base from Notion into knowledge/
+                      (page structure: knowledge/notion-template.md)
 ```
 
 `apps/api` and `apps/web` each have their own README with details specific to that app.

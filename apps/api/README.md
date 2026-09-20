@@ -30,6 +30,10 @@ Tools (`@portfolio/tools`): `list_projects` and `get_contact_information`, readi
 
 Returns `{ "status": "ok" }`. Does not call the model.
 
+### `GET /contact`
+
+Returns the public contact links from `CONTACT_*` env variables (`packages/config/src/contact.ts`), with unset values omitted. No API key required — static public data. A 404 means nothing is configured, and the web sidebar hides the buttons.
+
 ### `POST /chat`
 
 Body:

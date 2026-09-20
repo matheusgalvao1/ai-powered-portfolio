@@ -12,6 +12,7 @@ import {
   createToolRegistry,
   type PortfolioData,
 } from "@portfolio/tools";
+import { contactConfig } from "@portfolio/config";
 import type { ConversationMessage } from "@portfolio/shared";
 
 type PortfolioAgentOptions = {
@@ -40,7 +41,7 @@ export type PortfolioAgent = {
 export function createPortfolioAgent(options: PortfolioAgentOptions): PortfolioAgent {
   const registry = createToolRegistry([
     createListProjectsTool(options.portfolio),
-    createGetContactInformationTool(options.portfolio),
+    createGetContactInformationTool(contactConfig),
   ]);
 
   const step = createOpenRouterStep({

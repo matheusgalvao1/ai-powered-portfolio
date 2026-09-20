@@ -1,12 +1,26 @@
 import { z } from "zod";
-import type { PortfolioData } from "./portfolio.js";
 import type { RegisteredTool } from "./types.js";
 
-export function createGetContactInformationTool(data: PortfolioData): RegisteredTool {
+// The contact links come from packages/config (CONTACT_* env vars), not from
+// the portfolio data file — they are deploy-level config, not knowledge-base
+// content.
+export function createGetContactInformationTool(contact: {
+  email: string;
+  linkedin: string;
+  github: string;
+}): RegisteredTool {
   return {
     name: "get_contact_information",
     description: "Return the owner's public contact information (email, LinkedIn, GitHub).",
     inputSchema: z.object({}),
-    execute: () => data.contact,
+    execute: () => {
+      const configured = Object.values(contact).some(
+        (value) => value.trim().length > 0,
+      );
+      if (!configured) {
+        return { ok: false, error: "No contact information is currently configured." };
+      }
+      return contact;
+    },
   };
 }
