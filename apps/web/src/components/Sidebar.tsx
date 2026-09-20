@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { ConversationSummary } from "../lib/conversationStore.js";
 
 export function Sidebar({
@@ -6,12 +7,14 @@ export function Sidebar({
   activeId,
   onSelect,
   onDelete,
+  footer,
 }: {
   open: boolean;
   conversations: ConversationSummary[];
   activeId: string | null;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
+  footer?: ReactNode;
 }) {
   return (
     <aside
@@ -68,6 +71,7 @@ export function Sidebar({
             </div>
           ))
         : null}
+      {footer}
     </aside>
   );
 }

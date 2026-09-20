@@ -72,9 +72,17 @@ function toEntries(data: Partial<ContactLinks>): SocialEntry[] {
   return entries;
 }
 
-export function SocialLinks({ open }: { open: boolean }) {
+// `inline` renders the links in-flow (used inside the drawer on compact
+// screens); the default is the fixed bottom-left cluster for the desktop
+// margin rail.
+export function SocialLinks({
+  open,
+  inline = false,
+}: {
+  open: boolean;
+  inline?: boolean;
+}) {
   const [entries, setEntries] = useState<SocialEntry[]>([]);
-
   useEffect(() => {
     let cancelled = false;
 
@@ -104,7 +112,7 @@ export function SocialLinks({ open }: { open: boolean }) {
   }
 
   return (
-    <div className={`sidebar-social${open ? " open" : ""}`}>
+    <div className={`sidebar-social${inline ? " inline" : ""}${open ? " open" : ""}`}>
       {entries.map((entry) => (
         <a
           key={entry.key}

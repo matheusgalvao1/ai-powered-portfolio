@@ -1,4 +1,5 @@
 :root {
+  --sidebar-width: 260px;
   --bg: #0a0a0a;
   --bg-panel: #111113;
   --bg-input: rgba(255, 255, 255, 0.04);
@@ -63,7 +64,7 @@ body {
 }
 
 .sidebar-toggle.open {
-  left: calc(260px - 3rem);
+  left: calc(var(--sidebar-width) - 3rem);
 }
 
 .sidebar-new-chat {
@@ -91,7 +92,7 @@ body {
 }
 
 .sidebar-new-chat.open {
-  width: calc(260px - 2rem);
+  width: calc(var(--sidebar-width) - 2rem);
   justify-content: center;
 }
 
@@ -116,7 +117,7 @@ body {
 }
 
 .sidebar-social.open {
-  width: calc(260px - 2rem);
+  width: calc(var(--sidebar-width) - 2rem);
 }
 
 .social-link {
@@ -162,7 +163,7 @@ body {
   top: 0;
   bottom: 0;
   left: 0;
-  width: 260px;
+  width: var(--sidebar-width);
   z-index: 2;
   padding: 6.5rem 0.75rem 1rem;
   overflow-y: auto;
@@ -271,6 +272,20 @@ body {
   padding: 0.5rem 0.65rem;
   color: var(--text-faint);
   font-size: 0.8125rem;
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.5);
+  animation: backdrop-in 0.2s ease-out;
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .chat {
@@ -550,7 +565,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 3rem 0 0;
+  padding: 3rem 0 env(safe-area-inset-bottom);
 }
 
 .composer-row {
@@ -702,7 +717,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .message,
   .messages-viewport::before,
-  .messages-viewport::after {
+  .messages-viewport::after,
+  .sidebar-backdrop {
     animation: none;
     transition: none;
   }
@@ -712,8 +728,70 @@ body {
   display: none;
 }
 
+@media (max-width: 767px) {
+  :root {
+    --sidebar-width: min(80vw, 260px);
+  }
+
+  .sidebar {
+    background: var(--bg);
+    padding-top: 4.5rem;
+  }
+
+  .messages-viewport {
+    --orb-space: 0px;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .message-activity {
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    margin: 0 0 0.35rem;
+  }
+
+  .sidebar-toggle.open {
+    left: 1rem;
+  }
+
+  .sidebar-new-chat {
+    left: auto;
+    right: 1rem;
+    top: 1rem;
+  }
+
+  .sidebar-new-chat.open {
+    right: calc(100% - var(--sidebar-width) + 1rem);
+    width: max-content;
+    justify-content: flex-start;
+    padding: 0 0.65rem;
+  }
+
+  .chat {
+    padding-top: 4rem;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  .messages {
+    padding-top: 0.5rem;
+  }
+
+  .composer {
+    padding: 1rem 0 env(safe-area-inset-bottom);
+  }
+
+  .sidebar-social.inline {
+    position: static;
+    width: 100%;
+    margin-top: auto;
+    padding-top: 0.75rem;
+  }
+}
+
 @media (max-width: 480px) {
   .chat {
-    padding: 1.5rem 0.75rem;
+    padding-right: 0.75rem;
+    padding-left: 0.75rem;
   }
 }

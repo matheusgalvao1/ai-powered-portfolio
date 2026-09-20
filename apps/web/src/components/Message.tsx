@@ -1,17 +1,21 @@
 import { ThinkingOrb } from "thinking-orbs";
+import type { OrbSize } from "thinking-orbs";
 import type { UiMessage } from "../hooks/useChat.js";
+import { useIsCompact } from "../hooks/useIsCompact.js";
 import { MarkdownMessage } from "./MarkdownMessage.js";
 
 function ActivityIndicator({
   label,
   state,
+  size,
 }: {
   label?: string;
   state: "connecting" | "solving";
+  size: OrbSize;
 }) {
   return (
     <span className="message-activity">
-      <ThinkingOrb state={state} size={64} aria-label={label ?? state} />
+      <ThinkingOrb state={state} size={size} aria-label={label ?? state} />
       {label ? <span className="message-activity-label">{label}</span> : null}
     </span>
   );
@@ -25,6 +29,7 @@ export function Message({
   hasOrb: boolean;
 }) {
   const { role, text, status, activity } = message;
+  const isCompact = useIsCompact();
 
   if (role === "interrupted") {
     return (
@@ -43,6 +48,7 @@ export function Message({
           <ActivityIndicator
             label={busy ? activity?.label : undefined}
             state={busy ? "solving" : "connecting"}
+            size={isCompact ? 20 : 64}
           />
         ) : null}
         <div className="message-content">

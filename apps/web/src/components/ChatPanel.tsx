@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { TouchEvent, WheelEvent } from "react";
 import type { ChatAttachment } from "@portfolio/shared";
 import { useChat } from "../hooks/useChat.js";
+import { useIsCompact } from "../hooks/useIsCompact.js";
 import { Message } from "./Message.js";
 import { Composer } from "./Composer.js";
 import { Sidebar } from "./Sidebar.js";
@@ -24,6 +25,7 @@ export function ChatPanel() {
     switchConversation,
     deleteConversation,
   } = useChat();
+  const isCompact = useIsCompact();
   const messagesRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   // The scrollTop the panel last assigned itself; a scroll event still at
@@ -131,11 +133,17 @@ export function ChatPanel() {
   const handleNewChat = () => {
     stickToBottomRef.current = true;
     resetConversation();
+    if (isCompact) {
+      setSidebarOpen(false);
+    }
   };
 
   const handleSelectConversation = (id: string) => {
     stickToBottomRef.current = true;
     switchConversation(id);
+    if (isCompact) {
+      setSidebarOpen(false);
+    }
   };
 
   const handleDeleteConversation = (id: string) => {
@@ -212,14 +220,29 @@ export function ChatPanel() {
         </svg>
         {sidebarOpen ? <span>New chat</span> : null}
       </button>
+      {sidebarOpen && isCompact ? (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      ) : null}
+      {sidebarOpen && isCompact ? (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      ) : null}
       <Sidebar
         open={sidebarOpen}
         conversations={conversations}
         activeId={activeConversationId}
         onSelect={handleSelectConversation}
         onDelete={handleDeleteConversation}
+        footer={isCompact ? <SocialLinks open /> : undefined}
       />
-      <SocialLinks open={sidebarOpen} />
+      {isCompact ? null : <SocialLinks open={sidebarOpen} />}
       <section className="chat" aria-label="Chat">
       <div
         className={`messages-viewport${fadeEdges.top ? " has-top-fade" : ""}${
