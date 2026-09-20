@@ -247,9 +247,19 @@ body {
     background 0.15s ease;
 }
 
-.sidebar-item:hover .sidebar-item-delete,
-.sidebar-item:focus-within .sidebar-item-delete {
-  opacity: 1;
+@media (hover: hover) {
+  .sidebar-item:hover .sidebar-item-delete,
+  .sidebar-item:focus-within .sidebar-item-delete {
+    opacity: 1;
+  }
+}
+
+@media (hover: none) {
+  .sidebar-item-delete {
+    width: 28px;
+    height: 28px;
+    opacity: 1;
+  }
 }
 
 .sidebar-item-delete:hover {
