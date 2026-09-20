@@ -81,6 +81,13 @@ export function upsertIndex(
   return next;
 }
 
+export function removeConversation(id: string): ConversationSummary[] {
+  localStorage.removeItem(conversationKey(id));
+  const next = loadIndex().filter((entry) => entry.id !== id);
+  localStorage.setItem(INDEX_KEY, JSON.stringify(next));
+  return next;
+}
+
 export function loadConversation(id: string): StoredConversation | null {
   const stored = asStoredConversation(safeParse(localStorage.getItem(conversationKey(id))));
   if (!stored || stored.messages.length === 0) {

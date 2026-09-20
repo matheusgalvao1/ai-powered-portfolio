@@ -11,6 +11,7 @@ import {
   loadActive,
   loadConversation,
   loadIndex,
+  removeConversation,
   saveActive,
   upsertIndex,
   type ConversationSummary,
@@ -428,6 +429,22 @@ export function useChat() {
     setMessages(stored.messages.map((message) => ({ ...message, activity: null })));
   }, []);
 
+  const deleteConversation = useCallback(
+    (id: string) => {
+      // Never delete under a turn that is still streaming.
+      if (abortControllerRef.current) {
+        return;
+      }
+
+      const wasActive = activeMetaRef.current?.id === id;
+      setConversations(removeConversation(id));
+      if (wasActive) {
+        resetConversation();
+      }
+    },
+    [resetConversation],
+  );
+
   return {
     messages,
     sendMessage,
@@ -437,5 +454,6 @@ export function useChat() {
     conversations,
     activeConversationId: activeMeta?.id ?? null,
     switchConversation,
+    deleteConversation,
   };
 }

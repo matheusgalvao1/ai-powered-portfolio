@@ -22,6 +22,7 @@ export function ChatPanel() {
     conversations,
     activeConversationId,
     switchConversation,
+    deleteConversation,
   } = useChat();
   const messagesRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -137,6 +138,10 @@ export function ChatPanel() {
     switchConversation(id);
   };
 
+  const handleDeleteConversation = (id: string) => {
+    deleteConversation(id);
+  };
+
   // Collapsed by default: each visit starts with the history rail closed.
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -212,6 +217,7 @@ export function ChatPanel() {
         conversations={conversations}
         activeId={activeConversationId}
         onSelect={handleSelectConversation}
+        onDelete={handleDeleteConversation}
       />
       <SocialLinks open={sidebarOpen} />
       <section className="chat" aria-label="Chat">
