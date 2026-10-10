@@ -5,7 +5,7 @@ export const modelConfig = {
   siteName: process.env.OPENROUTER_SITE_NAME ?? "Matheus's Portfolio Assistant",
   maxOutputTokens: process.env.MAX_OUTPUT_TOKENS
     ? Number(process.env.MAX_OUTPUT_TOKENS)
-    : 1024,
+    : 4_096,
   temperature: process.env.MODEL_TEMPERATURE
     ? Number(process.env.MODEL_TEMPERATURE)
     : 0.3,

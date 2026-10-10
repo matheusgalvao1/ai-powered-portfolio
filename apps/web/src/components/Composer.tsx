@@ -6,6 +6,8 @@ import {
   isAllowedAttachmentType,
   MAX_ATTACHMENT_BYTES,
   MAX_ATTACHMENT_FILES,
+  MAX_MESSAGE_CHARS,
+  MAX_TEXT_ATTACHMENT_TOTAL_BYTES,
 } from "@portfolio/shared";
 
 type PendingAttachment = ChatAttachment & { dataUrl: string };
@@ -16,7 +18,6 @@ const EXTENSION_MIME_TYPES: Record<string, string> = {
   txt: "text/plain",
   md: "text/markdown",
   csv: "text/csv",
-  pdf: "application/pdf",
   png: "image/png",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
@@ -90,6 +91,21 @@ export function Composer({
     setAttachmentError(error);
 
     if (accepted.length === 0) {
+      return;
+    }
+
+    // Text files are inlined into the prompt on the server, so their combined
+    // size is capped — mirroring the server-side wire constraint.
+    const pendingTextBytes = pending
+      .filter((attachment) => attachment.mimeType.startsWith("text/"))
+      .reduce((sum, attachment) => sum + (attachment.data.length * 3) / 4, 0);
+    const acceptedTextBytes = accepted
+      .filter(({ mimeType }) => mimeType.startsWith("text/"))
+      .reduce((sum, { file }) => sum + file.size, 0);
+    if (pendingTextBytes + acceptedTextBytes > MAX_TEXT_ATTACHMENT_TOTAL_BYTES) {
+      setAttachmentError(
+        `Text attachments are too large (max ${Math.floor(MAX_TEXT_ATTACHMENT_TOTAL_BYTES / 1024)} KB combined).`,
+      );
       return;
     }
 
@@ -200,6 +216,7 @@ export function Composer({
           placeholder="Ask about Matheus..."
           autoComplete="off"
           autoFocus
+          maxLength={MAX_MESSAGE_CHARS}
           disabled={disabled}
           onInput={(event) => setHasText(event.currentTarget.value.trim().length > 0)}
         />

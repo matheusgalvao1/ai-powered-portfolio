@@ -3,6 +3,23 @@ import { z } from "zod";
 // The wire contract between apps/api and apps/web. Extended only when the
 // corresponding server behavior actually exists — no speculative events.
 
+// Message caps. MAX_MESSAGE_CHARS is a hard request limit (the client just
+// typed it, so rejecting is fine). The history caps apply to what the SERVER
+// stores/sends to the model: the conversation lives in the server-side SQLite
+// session store (the client only sends a sessionId), and the model sees the
+// most recent MAX_HISTORY_MESSAGES entries clamped to MAX_HISTORY_MESSAGE_CHARS
+// each — later softened by compaction.
+export const MAX_MESSAGE_CHARS = 8_000;
+export const MAX_HISTORY_MESSAGES = 24;
+export const MAX_HISTORY_MESSAGE_CHARS = 16_000;
+
+// sessionId is generated client-side and becomes the server-side session
+// key (SQLite primary key, formerly a filename) — constrained to UUIDs to
+// rule out traversal/collision games.
+export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Server-side history entry shape (not part of the wire request anymore —
+// the conversation lives in the session store).
 export const ConversationMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string(),
@@ -10,17 +27,21 @@ export const ConversationMessageSchema = z.object({
 export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
 
 // Attachments are base64 data URLs sent inline in the request body. Images
-// and PDFs become multimodal content parts (they need a vision-capable
-// model); text files are inlined into the prompt and work with any model.
+// become multimodal content parts (they need a vision-capable model); text
+// files are inlined into the prompt and work with any model, so their
+// combined decoded size is capped — text token cost is byte-based and would
+// otherwise dwarf what rate limiting can contain. PDFs are not accepted:
+// per-page token billing is effectively unbounded per file; reintroduce only
+// with a page-count cap.
 export const MAX_ATTACHMENT_FILES = 4;
 export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
 export const MAX_ATTACHMENT_BASE64_CHARS = 4_300_000;
+export const MAX_TEXT_ATTACHMENT_TOTAL_BYTES = 128 * 1024;
 export const ALLOWED_ATTACHMENT_MIME_TYPES = [
   "image/png",
   "image/jpeg",
   "image/webp",
   "image/gif",
-  "application/pdf",
   "text/plain",
   "text/markdown",
   "text/csv",
@@ -51,10 +72,24 @@ export const ChatAttachmentSchema = z.object({
 export type ChatAttachment = z.infer<typeof ChatAttachmentSchema>;
 
 export const ChatRequestSchema = z.object({
-  message: z.string().trim().min(1, "message is required"),
-  sessionId: z.string().optional(),
-  conversation: z.array(ConversationMessageSchema).optional().default([]),
-  attachments: z.array(ChatAttachmentSchema).max(MAX_ATTACHMENT_FILES).optional().default([]),
+  message: z.string().trim().min(1, "message is required").max(MAX_MESSAGE_CHARS),
+  // Required: the client generates it when a conversation is born and the
+  // server keeps the history under this key. UUIDs because it becomes a
+  // database key / former filename — rules out path traversal and collisions.
+  sessionId: z.string().regex(UUID_PATTERN, "sessionId must be a UUID"),
+  attachments: z
+    .array(ChatAttachmentSchema)
+    .max(MAX_ATTACHMENT_FILES)
+    .refine(
+      (attachments) =>
+        attachments
+          .filter((attachment) => attachment.mimeType.startsWith("text/"))
+          .reduce((total, attachment) => total + (attachment.data.length * 3) / 4, 0) <=
+        MAX_TEXT_ATTACHMENT_TOTAL_BYTES,
+      "text attachments are too large",
+    )
+    .optional()
+    .default([]),
 });
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 
@@ -84,7 +119,6 @@ export const ChatStreamEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("complete"),
-    conversation: z.array(ConversationMessageSchema),
   }),
   z.object({
     type: z.literal("error"),

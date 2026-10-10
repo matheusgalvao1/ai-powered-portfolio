@@ -72,6 +72,30 @@ describe("runAgentLoop", () => {
     expect(state.steps).toBe(1);
   });
 
+  it("accumulates token usage across steps, including tool-call steps", async () => {
+    const { deps } = makeDeps([
+      {
+        text: "Checking the project list.",
+        toolUses: [toolCall("t1")],
+        usage: { inputTokens: 10, outputTokens: 2 },
+      },
+      { text: "Done.", toolUses: [], usage: { inputTokens: 15, outputTokens: 3 } },
+    ]);
+
+    const state = await runAgentLoop(createInitialState("Question?", []), deps, () => {});
+
+    expect(state.status).toBe("complete");
+    expect(state.usage).toEqual({ inputTokens: 25, outputTokens: 5 });
+  });
+
+  it("keeps usage at zero when steps report none", async () => {
+    const { deps } = makeDeps([{ text: "Done.", toolUses: [] }]);
+
+    const state = await runAgentLoop(createInitialState("Question?", []), deps, () => {});
+
+    expect(state.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+  });
+
   it("executes tool calls, appends assistant and tool messages, then completes", async () => {
     const { deps, events, calls } = makeDeps([
       { text: "Let me check the project list.", toolUses: [toolCall("t1")] },
@@ -219,7 +243,6 @@ describe("runAgentLoop", () => {
       createInitialState("What is in these files?", [], [
         { name: "notes.txt", mimeType: "text/plain", data: "aGVsbG8=" },
         { name: "photo.png", mimeType: "image/png", data: "aGVsbG8=" },
-        { name: "doc.pdf", mimeType: "application/pdf", data: "aGVsbG8=" },
       ]),
       deps,
       () => {},
@@ -230,21 +253,16 @@ describe("runAgentLoop", () => {
     expect(userMessage.role).toBe("user");
     const parts = userMessage.content as Array<Record<string, unknown>>;
 
-    expect(parts).toHaveLength(3);
+    expect(parts).toHaveLength(2);
     expect(parts[0]?.type).toBe("text");
     const text = parts[0]?.text as string;
     expect(text).toContain("What is in these files?");
     expect(text).toContain("[Attached file: notes.txt]");
     expect(text).toContain("<attached_file>\nhello\n</attached_file>");
     expect(text).toContain("[Attached image: photo.png]");
-    expect(text).toContain("[Attached document: doc.pdf]");
     expect(parts[1]).toEqual({
       type: "image_url",
       image_url: { url: "data:image/png;base64,aGVsbG8=" },
-    });
-    expect(parts[2]).toEqual({
-      type: "file",
-      file: { filename: "doc.pdf", file_data: "data:application/pdf;base64,aGVsbG8=" },
     });
   });
 });

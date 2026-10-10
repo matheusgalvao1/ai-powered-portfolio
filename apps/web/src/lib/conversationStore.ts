@@ -1,4 +1,3 @@
-import type { ConversationMessage } from "@portfolio/shared";
 import type { UiMessage } from "../hooks/useChat.js";
 
 export type ConversationSummary = {
@@ -7,12 +6,13 @@ export type ConversationSummary = {
   updatedAt: number;
 };
 
+// Display-only persistence: the UI transcript a refresh restores. The
+// model-facing conversation lives server-side under sessionId.
 export type StoredConversation = {
   id: string;
   title: string;
   sessionId?: string;
   messages: UiMessage[];
-  transcript: ConversationMessage[];
 };
 
 const INDEX_KEY = "conversations";
@@ -39,7 +39,6 @@ function asStoredConversation(value: unknown): StoredConversation | null {
   const parsed = value as Partial<StoredConversation>;
   if (
     !Array.isArray(parsed.messages) ||
-    !Array.isArray(parsed.transcript) ||
     typeof parsed.id !== "string" ||
     typeof parsed.title !== "string"
   ) {
@@ -51,7 +50,6 @@ function asStoredConversation(value: unknown): StoredConversation | null {
     sessionId:
       typeof parsed.sessionId === "string" ? parsed.sessionId : undefined,
     messages: parsed.messages,
-    transcript: parsed.transcript,
   };
 }
 
@@ -101,16 +99,17 @@ export function saveConversation(entry: StoredConversation): void {
 }
 
 // The active pointer keeps the exact on-screen state (including "nothing
-// active" after New chat) restorable on refresh.
+// active" after New chat) restorable on refresh. Legacy payloads from the
+// client-owned-history era carry a transcript/conversation field — no longer
+// used, ignored on read.
 export function loadActive(): StoredConversation | null {
   const parsed = safeParse(localStorage.getItem(ACTIVE_KEY)) as
-    | (Partial<StoredConversation> & { messages?: unknown; conversation?: unknown })
+    | (Partial<StoredConversation> & { messages?: unknown })
     | null;
   if (
     typeof parsed !== "object" ||
     parsed === null ||
-    !Array.isArray(parsed.messages) ||
-    !Array.isArray(parsed.conversation)
+    !Array.isArray(parsed.messages)
   ) {
     return null;
   }
@@ -126,7 +125,6 @@ export function loadActive(): StoredConversation | null {
     sessionId:
       typeof parsed.sessionId === "string" ? parsed.sessionId : undefined,
     messages: parsed.messages,
-    transcript: parsed.conversation as ConversationMessage[],
   };
 
   if (stored.messages.length === 0) {

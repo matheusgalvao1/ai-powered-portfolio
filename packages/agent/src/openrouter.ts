@@ -1,5 +1,5 @@
 import type { ToolSpec } from "@portfolio/tools";
-import type { StepFn, ToolUseRequest } from "./types.js";
+import type { StepFn, StepUsage, ToolUseRequest } from "./types.js";
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
@@ -37,6 +37,14 @@ type OpenRouterChunk = {
     };
     finish_reason?: string | null;
   }>;
+  // Present on the final chunk when stream_options.include_usage is set.
+  // Providers that do not report usage simply omit it, so totals can be
+  // under-counts — acceptable for budget enforcement (documented in
+  // docs/abuse-proofing-plan.md).
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+  };
 };
 
 type PendingToolUse = {
@@ -125,6 +133,7 @@ export function createOpenRouterStep(options: OpenRouterOptions): StepFn {
         tools,
         tool_choice: "auto",
         stream: true,
+        stream_options: { include_usage: true },
         max_tokens: options.maxOutputTokens,
         temperature: options.temperature,
       }),
@@ -155,6 +164,7 @@ export function createOpenRouterStep(options: OpenRouterOptions): StepFn {
     let stopReason: string | undefined;
     let thinking = false;
     let streamDone = false;
+    const usage: StepUsage = { inputTokens: 0, outputTokens: 0 };
 
     const processLine = (rawLine: string): boolean => {
       const line = rawLine.trim();
@@ -173,6 +183,11 @@ export function createOpenRouterStep(options: OpenRouterOptions): StepFn {
       }
       if (chunk.error?.message) {
         throw new Error(chunk.error.message);
+      }
+
+      if (chunk.usage) {
+        usage.inputTokens += chunk.usage.prompt_tokens ?? 0;
+        usage.outputTokens += chunk.usage.completion_tokens ?? 0;
       }
 
       const choice = chunk.choices?.[0];
@@ -265,6 +280,6 @@ export function createOpenRouterStep(options: OpenRouterOptions): StepFn {
         input: parseToolInput(pending.inputJson),
       }));
 
-    return { text, toolUses, stopReason };
+    return { text, toolUses, stopReason, usage };
   };
 }

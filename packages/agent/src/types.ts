@@ -12,10 +12,10 @@ export type UserAttachment = {
 // Multimodal content parts for user messages, in the OpenAI-compatible shape
 // OpenRouter normalizes across providers. Text attachments do not become
 // parts — they are inlined into the text part and work with any model.
+// Only images are sent as parts; PDFs are not accepted at the wire layer.
 export type UserContentPart =
   | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string } }
-  | { type: "file"; file: { filename: string; file_data: string } };
+  | { type: "image_url"; image_url: { url: string } };
 
 export type ToolCallPayload = {
   id: string;
@@ -46,6 +46,18 @@ export type AgentState = {
   // Set when the model hit the output-token cap (stopReason "max_tokens"),
   // so callers can tell a naturally-finished answer from a cut-off one.
   truncated: boolean;
+  // Token usage accumulated across all steps of the turn. The chat service
+  // feeds this into the daily budget ledger — the circuit breaker that caps
+  // the bill when the site is abused.
+  usage: StepUsage;
+};
+
+// Tokens billed for one model call. Optional in StepResult because fake steps
+// in tests omit it; the real OpenRouter step reports it when the provider
+// returns usage (stream_options: include_usage).
+export type StepUsage = {
+  inputTokens: number;
+  outputTokens: number;
 };
 
 export type ToolUseRequest = {
@@ -58,6 +70,7 @@ export type StepResult = {
   text: string;
   toolUses: ToolUseRequest[];
   stopReason?: string | undefined;
+  usage?: StepUsage | undefined;
 };
 
 // One model invocation. Injected into the loop so tests can drive it with a

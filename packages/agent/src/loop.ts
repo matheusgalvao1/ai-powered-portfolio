@@ -12,9 +12,9 @@ const EMPTY_RESPONSE_NUDGE =
   "System note: your previous response was empty. Respond to the user's request now by " +
   "writing your complete answer as plain text, with no tool calls.";
 
-// Images and PDFs become multimodal content parts (they need a vision- or
-// file-capable model); text attachments are inlined into the text part, so
-// they work with any model.
+// Images become multimodal content parts (they need a vision-capable model);
+// text attachments are inlined into the text part, so they work with any
+// model. PDFs are not accepted at the wire layer (see @portfolio/shared).
 function createUserMessage(
   message: string,
   attachments: UserAttachment[],
@@ -39,14 +39,9 @@ function createUserMessage(
 
   const parts: UserContentPart[] = [{ type: "text", text: textParts.join("") }];
   for (const attachment of attachments) {
-    const dataUrl = `data:${attachment.mimeType};base64,${attachment.data}`;
     if (attachment.mimeType.startsWith("image/")) {
+      const dataUrl = `data:${attachment.mimeType};base64,${attachment.data}`;
       parts.push({ type: "image_url", image_url: { url: dataUrl } });
-    } else if (attachment.mimeType === "application/pdf") {
-      parts.push({
-        type: "file",
-        file: { filename: attachment.name, file_data: dataUrl },
-      });
     }
   }
 
@@ -68,6 +63,7 @@ export function createInitialState(
     ],
     answer: "",
     truncated: false,
+    usage: { inputTokens: 0, outputTokens: 0 },
   };
 }
 
@@ -93,6 +89,13 @@ export async function runAgentLoop(
       onToken: (value) => emit({ type: "token", value }),
       onThinking: (status) => emit({ type: "thinking", status }),
     });
+
+    // Every step bills tokens, including ones that end in tool calls or the
+    // empty-response retry, so accumulate before anything else branches.
+    if (response.usage) {
+      state.usage.inputTokens += response.usage.inputTokens;
+      state.usage.outputTokens += response.usage.outputTokens;
+    }
 
     if (response.toolUses.length === 0) {
       if (response.text.trim().length === 0) {

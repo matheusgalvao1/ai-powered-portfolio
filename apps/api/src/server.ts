@@ -5,7 +5,8 @@ import express from "express";
 import { createPortfolioAgent } from "./agent.js";
 import { buildSystemPrompt } from "./prompt.js";
 import { loadPortfolioData } from "./portfolio.js";
-import { SessionRecorder } from "./sessionRecorder.js";
+import { createSessionStore } from "./sessionStore.js";
+import { createSqlBudgetLedger } from "./budget.js";
 import { createChatService } from "./services/chatService.js";
 import { healthHandler } from "./handlers/health.js";
 import { createChatHandler } from "./handlers/chat.js";
@@ -13,7 +14,14 @@ import { createContactHandler } from "./handlers/contact.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { apiKeyMiddleware } from "./middleware/apiKey.js";
 import { createRateLimitMiddleware } from "./middleware/rateLimit.js";
-import { agentConfig, contactConfig, modelConfig, serverConfig } from "@portfolio/config";
+import { createConcurrencyMiddleware } from "./middleware/concurrency.js";
+import {
+  agentConfig,
+  budgetConfig,
+  contactConfig,
+  modelConfig,
+  serverConfig,
+} from "@portfolio/config";
 
 const apiDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRootDir = join(apiDir, "../..");
@@ -43,13 +51,22 @@ const agent = createPortfolioAgent({
   portfolio,
 });
 
-const recorder = new SessionRecorder({
-  sessionsDir: join(apiDir, "data/sessions"),
+const store = createSessionStore({ dbPath: serverConfig.sessionDbPath });
+const ledger = createSqlBudgetLedger({
+  store,
+  globalDailyTokens: budgetConfig.globalDailyTokens,
+  perIpDailyTokens: budgetConfig.perIpDailyTokens,
 });
-const chatService = createChatService({ agent, recorder });
+const chatService = createChatService({ agent, store, ledger });
 const rateLimitMiddleware = createRateLimitMiddleware();
+const concurrencyMiddleware = createConcurrencyMiddleware();
 
 const app = express();
+// TRUST_PROXY must be set in production (behind Cloudflare/nginx) for req.ip
+// to be the real client IP — the rate limiter and budget ledger key on it.
+if (serverConfig.trustProxy !== undefined) {
+  app.set("trust proxy", serverConfig.trustProxy);
+}
 // Inline base64 attachments: worst case 4 files x 3 MiB raw ~= 16 MiB of JSON.
 app.use(express.json({ limit: "20mb" }));
 app.use(corsMiddleware);
@@ -60,6 +77,7 @@ app.post(
   "/chat",
   apiKeyMiddleware,
   rateLimitMiddleware,
+  concurrencyMiddleware,
   createChatHandler({ chatService }),
 );
 

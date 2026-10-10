@@ -159,10 +159,6 @@ describe("createOpenRouterStep", () => {
           content: [
             { type: "text", text: "Describe the attachments" },
             { type: "image_url", image_url: { url: "data:image/png;base64,aGVsbG8=" } },
-            {
-              type: "file",
-              file: { filename: "doc.pdf", file_data: "data:application/pdf;base64,aGVsbG8=" },
-            },
           ],
         },
       ],
@@ -180,10 +176,6 @@ describe("createOpenRouterStep", () => {
     expect(userContent[1]).toEqual({
       type: "image_url",
       image_url: { url: "data:image/png;base64,aGVsbG8=" },
-    });
-    expect(userContent[2]).toEqual({
-      type: "file",
-      file: { filename: "doc.pdf", file_data: "data:application/pdf;base64,aGVsbG8=" },
     });
   });
 });

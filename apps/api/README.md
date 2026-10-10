@@ -40,9 +40,10 @@ Body:
 
 ```ts
 {
-  message: string;
-  sessionId?: string;       // client-generated; the server never creates or looks one up
-  conversation?: Array<{ role: "user" | "assistant"; content: string }>;
+  message: string;          // hard-capped at MAX_MESSAGE_CHARS (8,000)
+  sessionId: string;        // client-generated UUID; the server keeps the
+                            // transcript and the model's context under it
+  attachments?: Array<{ id, name, mimeType, data }>;  // base64; images and text only
 }
 ```
 
@@ -52,14 +53,14 @@ Responds as `text/event-stream` (SSE), one JSON object per `data:` frame:
 { type: "start"; requestId: string; sessionId: string }
 { type: "token"; value: string }
 { type: "tool"; name: string; status: "started" | "completed" }   // name only — never arguments or results
-{ type: "thinking"; status: "started" | "stopped" }               // only on models that emit reasoning deltas (zai.glm-5 does not)
-{ type: "complete"; conversation: Array<{ role: string; content: string }> }
+{ type: "thinking"; status: "started" | "stopped" }               // only on models that emit reasoning deltas
+{ type: "complete" }
 { type: "error"; code: string; message: string }
 ```
 
-The client is responsible for keeping `sessionId` and `conversation` across requests — the API is stateless and never persists conversation state itself.
+The conversation lives **server-side** in the SQLite session store: the client only sends its session id, and the server loads the model-facing history (most recent entries, clamped) and appends each turn — including markers when a turn is stopped or fails. Aborted requests also abort the upstream model call.
 
-Non-streaming error responses (400 validation, 429 rate limit) use the PRD 15.2 envelope: `{ error: { code, message, requestId } }`.
+Non-streaming error responses (400 validation, 429 rate limit/concurrency) use the PRD 15.2 envelope: `{ error: { code, message, requestId } }`.
 
 ## Structure
 
@@ -78,18 +79,23 @@ src/
   portfolio.ts         Loads knowledge/portfolio.json (falls back to the example file)
   sources.ts           Derives citable sources from the knowledge base's ## headings
   prompt.ts            Builds the system prompt from prompts/system.md + the knowledge base
-  session.ts           Session id generation
-  sessionRecorder.ts   Appends each turn to data/sessions/<sessionId>.jsonl
+  sessionStore.ts      SQLite (node:sqlite): sessions, messages, tool calls, usage —
+                       the source of truth for model context and recruiter analytics
+  budget.ts            Daily token budget ledger (SQL-backed; memory variant for tests)
 ```
 
-## Session logs
+## Session storage
 
-Every turn is appended to `data/sessions/<sessionId>.jsonl` (gitignored). This is a local stand-in for what will eventually be a DynamoDB write — it exists so you can see what's actually being asked, not to serve conversation history back to the model.
+Conversations live in the SQLite database at `SESSION_DB_PATH` (default `./data/sessions.db`, gitignored). Message rows are append-only — the full transcript is kept for analytics; compaction (planned) will only add a cached summary + cursor, never rewrite history. Usage rows record tokens per request and back the daily budget circuit breaker, so budgets survive restarts.
+
+## Deployment
+
+The `Dockerfile` at the repo root builds a single portable container (Fly.io today, AWS-mappable later — see `fly.toml` for the current manifest, including the persistent volume for SQLite and the `TRUST_PROXY` hop count).
 
 ## Environment variables
 
-See the root `.env.example`. `OPENROUTER_API_KEY` is required. `OPENROUTER_MODEL_ID` defaults to `deepseek/deepseek-v4-flash-0731`; `OPENROUTER_SITE_URL` and `OPENROUTER_SITE_NAME` are optional attribution headers. `PORT`, `ALLOWED_ORIGIN`, `MAX_AGENT_ITERATIONS` (default 5), `MAX_TOOL_CALLS` (default 8), `RATE_LIMIT_WINDOW_SECONDS`/`RATE_LIMIT_MAX_REQUESTS`, and `API_KEY` all have working defaults (or are disabled) if unset.
+See the root `.env.example`. `OPENROUTER_API_KEY` is required. `OPENROUTER_MODEL_ID` defaults to `deepseek/deepseek-v4-flash-0731`; `OPENROUTER_SITE_URL` and `OPENROUTER_SITE_NAME` are optional attribution headers. `PORT`, `ALLOWED_ORIGIN`, `MAX_AGENT_ITERATIONS` (default 8), `MAX_TOOL_CALLS` (default 12), `MAX_OUTPUT_TOKENS` (default 4096), `RATE_LIMIT_WINDOW_SECONDS`/`RATE_LIMIT_MAX_REQUESTS`, `MAX_CONCURRENT_PER_IP`/`MAX_CONCURRENT_GLOBAL`, `DAILY_PER_IP_TOKEN_BUDGET`/`DAILY_GLOBAL_TOKEN_BUDGET`, `SESSION_DB_PATH`, and `API_KEY` all have working defaults (or are disabled) if unset.
 
 `API_KEY`, if set, requires every `POST /chat` request to send a matching `X-Api-Key` header — this is **not** user authentication (recruiters never sign in), just a deterrent against direct abuse of the endpoint beyond CORS. It's not a real secret once it ships in the web client's built bundle.
 
-Conversation history sent by the client is currently unbounded — there's no cap or compaction. See [issue #8](https://github.com/matheusgalvao1/ai-powered-portfolio/issues/8) for the planned design (LLM-only compaction, run after the response so it never delays or hangs a turn, using a separate summarizer call rather than the portfolio agent).
+Conversation history is capped (most recent 24 entries × 16,000 chars each, clamped server-side). Server-side LLM compaction past a token trigger is planned so the effective window can grow without unbounded cost.

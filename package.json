@@ -2,8 +2,9 @@
   "name": "ai-powered-portfolio",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.13.1",
   "engines": {
-    "node": ">=20.12.0"
+    "node": ">=22.5.0"
   },
   "scripts": {
     "start:api": "pnpm --filter @portfolio/api dev",

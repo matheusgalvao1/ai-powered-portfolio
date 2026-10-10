@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChatAttachment, ConversationMessage } from "@portfolio/shared";
-import {
-  ChatRequestSchema,
-  ChatStreamEventSchema,
-  parseSseFrames,
-} from "@portfolio/shared";
+import type { ChatAttachment } from "@portfolio/shared";
+import { ChatRequestSchema, ChatStreamEventSchema, parseSseFrames } from "@portfolio/shared";
 import { API_BASE_URL, API_KEY } from "../lib/apiConfig.js";
 import {
   clearActive,
@@ -52,11 +48,6 @@ const WELCOME_MESSAGE =
   "Hi! I'm Matheus's portfolio assistant. Ask me about his experience, " +
   "skills, projects, or how to get in touch — I'll answer from his " +
   "knowledge base, not guesses.";
-
-const welcomeMessage: ConversationMessage = {
-  role: "assistant",
-  content: WELCOME_MESSAGE,
-};
 
 const TOOL_LABELS: Record<string, string> = {
   list_projects: "Checking the project list",
@@ -119,10 +110,10 @@ export function useChat() {
   );
   const activeMetaRef = useRef<{ id: string; title: string } | null>(activeMeta);
   const [conversations, setConversations] = useState<ConversationSummary[]>(loadIndex);
+  // The session lives server-side: this id is the only handle the client
+  // keeps. It is generated here when a conversation is born and sent with
+  // every message — the server owns the transcript and the model's context.
   const sessionIdRef = useRef<string | undefined>(restored?.sessionId);
-  const conversationRef = useRef<ConversationMessage[]>(
-    restored ? restored.transcript : [welcomeMessage],
-  );
 
   const updateMessage = useCallback((id: string, patch: Partial<UiMessage>) => {
     setMessages((prev) =>
@@ -196,7 +187,6 @@ export function useChat() {
               }
             : message,
         ),
-        transcript: conversationRef.current,
       });
     } catch (error) {
       console.error(error);
@@ -211,10 +201,12 @@ export function useChat() {
       }
 
       // A conversation is born on its first user message; that message
-      // becomes its title in the sidebar index.
+      // becomes its title in the sidebar index and a fresh session id is
+      // minted for the server-side transcript.
       let meta = activeMetaRef.current;
       if (!meta) {
         meta = { id: crypto.randomUUID(), title: titleFromMessage(text) };
+        sessionIdRef.current = crypto.randomUUID();
         activeMetaRef.current = meta;
         setActiveMeta(meta);
       }
@@ -249,10 +241,15 @@ export function useChat() {
       abortControllerRef.current = abortController;
 
       try {
+        // Legacy restores may predate session ids (client-owned-history era);
+        // mint one so the server-side session starts clean.
+        if (!sessionIdRef.current) {
+          sessionIdRef.current = crypto.randomUUID();
+        }
+
         const body = ChatRequestSchema.parse({
           message: text,
           sessionId: sessionIdRef.current,
-          conversation: conversationRef.current,
           attachments,
         });
 
@@ -323,7 +320,6 @@ export function useChat() {
                 });
                 break;
               case "complete":
-                conversationRef.current = event.conversation;
                 updateMessage(assistantId, { status: "done", activity: null });
                 break;
               case "error":
@@ -354,31 +350,15 @@ export function useChat() {
 
         if (cancelled) {
           // The user stopped the turn: the partial answer is discarded and
-          // replaced by an "Interrupted" divider. The transcript records the
-          // question plus a stopped marker, so the next request tells the
-          // model the turn was cut off on purpose instead of leaving a
-          // dangling question it never answered.
+          // replaced by an "Interrupted" divider. The server records the
+          // question plus a stopped marker in the session transcript, so the
+          // model knows the turn was cut off on purpose.
           updateMessage(assistantId, {
             role: "interrupted",
             text: "",
             status: "done",
             activity: null,
           });
-
-          const attachmentNote =
-            attachments.length > 0
-              ? `\n\n[Attached files: ${attachments
-                  .map((attachment) => `${attachment.name} (${attachment.mimeType})`)
-                  .join(", ")}]`
-              : "";
-          conversationRef.current = [
-            ...conversationRef.current,
-            { role: "user", content: text + attachmentNote },
-            {
-              role: "assistant",
-              content: "[The user stopped this response before it was finished.]",
-            },
-          ];
         }
 
         setIsSending(false);
@@ -400,13 +380,12 @@ export function useChat() {
         status: "streaming",
       },
     ]);
-    conversationRef.current = [welcomeMessage];
     setWelcomeVersion((version) => version + 1);
     activeMetaRef.current = null;
     setActiveMeta(null);
+    // A new session id is minted on the next message — the previous
+    // conversation stays in the index and on the server.
     sessionIdRef.current = undefined;
-    // The previous conversation stays in the index and its payload stays on
-    // disk — New chat starts a fresh one without erasing history.
     clearActive();
   }, []);
 
@@ -425,7 +404,6 @@ export function useChat() {
     activeMetaRef.current = meta;
     setActiveMeta(meta);
     sessionIdRef.current = stored.sessionId;
-    conversationRef.current = stored.transcript;
     setMessages(stored.messages.map((message) => ({ ...message, activity: null })));
   }, []);
 
