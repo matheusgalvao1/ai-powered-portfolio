@@ -62,6 +62,10 @@ The conversation lives **server-side** in the SQLite session store: the client o
 
 Non-streaming error responses (400 validation, 429 rate limit/concurrency) use the PRD 15.2 envelope: `{ error: { code, message, requestId } }`.
 
+### `GET /admin/overview` and `GET /admin/conversations/:sessionId`
+
+These read-only routes back the dashboard at `/admin`. Local development is bound to loopback. In production, every request must include a valid Cloudflare Access JWT for the configured issuer and audience and match `ADMIN_ACCESS_EMAIL`; missing configuration fails closed with 404. Configure an Access application for the API admin path and an allow policy for your email before enabling the dashboard in Pages.
+
 ## Structure
 
 ```text
@@ -72,6 +76,8 @@ src/
   middleware/rateLimit.ts  Per-IP fixed-window limiter on POST /chat
   handlers/            Thin HTTP layer: Zod-validate the request, translate
                         service events to SSE via @portfolio/shared's formatSseEvent
+    admin.ts              Read-only conversation monitoring endpoints
+  middleware/cloudflareAccess.ts  Verifies Cloudflare Access JWTs for admin reads
   services/chatService.ts   Session/request ids, running the agent, recording the
                              turn, complete/error events — knows nothing about HTTP
   agent.ts             Composition root: builds the tool registry, OpenRouter step,
@@ -90,7 +96,7 @@ Conversations live in the SQLite database at `SESSION_DB_PATH` (default `./data/
 
 ## Privacy
 
-What this deployment stores: chat transcripts keyed by a random, client-generated session UUID (no accounts, no cookies), tool-call records, and per-request token-usage rows that include the client IP (used only for abuse budgets). There is no automated retention yet — transcripts are kept until the operator deletes them, and the chat composer shows a one-line notice telling users that conversations are stored server-side. Keep that notice and this section in sync if storage changes.
+What this deployment stores: chat transcripts keyed by a random, client-generated session UUID (the public chat has no account identity), tool-call records, and per-request token-usage rows that include the client IP (used only for abuse budgets). The private admin dashboard uses Cloudflare Access authentication; its cookies are not stored by this app. There is no automated retention yet — transcripts are kept until the operator deletes them, and the chat composer shows a one-line notice telling users that conversations are stored server-side. Keep that notice and this section in sync if storage changes.
 
 ## Deployment
 
@@ -98,7 +104,7 @@ The `Dockerfile` at the repo root builds a single portable container (Fly.io tod
 
 ## Environment variables
 
-See the root `.env.example`. `OPENROUTER_API_KEY` is required. `OPENROUTER_MODEL_ID` defaults to `deepseek/deepseek-v4-flash-0731`; `OPENROUTER_SITE_URL` and `OPENROUTER_SITE_NAME` are optional attribution headers. `ALLOWED_ORIGINS` is a comma-separated exact-origin allowlist for browser CORS. `PORT`, `MAX_AGENT_ITERATIONS` (default 8), `MAX_TOOL_CALLS` (default 12), `MAX_OUTPUT_TOKENS` (default 4096), `RATE_LIMIT_WINDOW_SECONDS`/`RATE_LIMIT_MAX_REQUESTS`, `MAX_CONCURRENT_PER_IP`/`MAX_CONCURRENT_GLOBAL`, `DAILY_PER_IP_TOKEN_BUDGET`/`DAILY_GLOBAL_TOKEN_BUDGET`, `SESSION_DB_PATH`, and `API_KEY` all have working defaults (or are disabled) if unset.
+See the root `.env.example`. `OPENROUTER_API_KEY` is required. `OPENROUTER_MODEL_ID` defaults to `deepseek/deepseek-v4-flash-0731`; `OPENROUTER_SITE_URL` and `OPENROUTER_SITE_NAME` are optional attribution headers. `ALLOWED_ORIGINS` is a comma-separated exact-origin allowlist for browser CORS. `ADMIN_ACCESS_TEAM_DOMAIN`, the API Access application's `ADMIN_ACCESS_AUD`, and `ADMIN_ACCESS_EMAIL` are required to expose production admin data. `PORT`, `MAX_AGENT_ITERATIONS` (default 8), `MAX_TOOL_CALLS` (default 12), `MAX_OUTPUT_TOKENS` (default 4096), `RATE_LIMIT_WINDOW_SECONDS`/`RATE_LIMIT_MAX_REQUESTS`, `MAX_CONCURRENT_PER_IP`/`MAX_CONCURRENT_GLOBAL`, `DAILY_PER_IP_TOKEN_BUDGET`/`DAILY_GLOBAL_TOKEN_BUDGET`, `SESSION_DB_PATH`, and `API_KEY` all have working defaults (or are disabled) if unset.
 
 `API_KEY`, if set, requires every `POST /chat` request to send a matching `X-Api-Key` header — this is **not** user authentication (recruiters never sign in), just a deterrent against direct abuse of the endpoint beyond CORS. It's not a real secret once it ships in the web client's built bundle.
 

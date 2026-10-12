@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { ChatPanel } from "./components/ChatPanel.js";
+import { AdminDashboard } from "./components/AdminDashboard.js";
 
 export function App() {
   useEffect(() => {
@@ -22,6 +23,10 @@ export function App() {
       window.removeEventListener("resize", updateHeight);
     };
   }, []);
+
+  if (window.location.pathname.replace(/\/$/, "") === "/admin") {
+    return <AdminDashboard />;
+  }
 
   return (
     <main className="app">

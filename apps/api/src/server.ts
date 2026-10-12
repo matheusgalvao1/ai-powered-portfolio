@@ -11,6 +11,8 @@ import { createChatService } from "./services/chatService.js";
 import { healthHandler } from "./handlers/health.js";
 import { createChatHandler } from "./handlers/chat.js";
 import { createContactHandler } from "./handlers/contact.js";
+import { createAdminRouter } from "./handlers/admin.js";
+import { createCloudflareAccessMiddleware } from "./middleware/cloudflareAccess.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { apiKeyMiddleware } from "./middleware/apiKey.js";
 import { createRateLimitMiddleware } from "./middleware/rateLimit.js";
@@ -62,6 +64,7 @@ const rateLimitMiddleware = createRateLimitMiddleware();
 const concurrencyMiddleware = createConcurrencyMiddleware();
 
 const app = express();
+const isProduction = process.env.NODE_ENV === "production";
 // TRUST_PROXY must be set in production (behind Cloudflare/nginx) for req.ip
 // to be the real client IP — the rate limiter and budget ledger key on it.
 if (serverConfig.trustProxy !== undefined) {
@@ -73,6 +76,16 @@ app.use(corsMiddleware);
 
 app.get("/health", healthHandler);
 app.get("/contact", createContactHandler({ contact: contactConfig }));
+app.use(
+  "/admin",
+  createAdminRouter({
+    store,
+    enabled: true,
+    authorize: isProduction
+      ? createCloudflareAccessMiddleware(serverConfig.adminAccess)
+      : undefined,
+  }),
+);
 app.post(
   "/chat",
   apiKeyMiddleware,
@@ -81,6 +94,6 @@ app.post(
   createChatHandler({ chatService }),
 );
 
-app.listen(serverConfig.port, () => {
+app.listen(serverConfig.port, isProduction ? "0.0.0.0" : "127.0.0.1", () => {
   console.log(`API listening on http://localhost:${serverConfig.port}`);
 });

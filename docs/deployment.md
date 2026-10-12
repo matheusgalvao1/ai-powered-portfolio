@@ -57,12 +57,23 @@ fly logs --app matheus-portfolio-api
 
 The Fly app's secret/environment variable names are `OPENROUTER_API_KEY`,
 `OPENROUTER_MODEL_ID`, `OPENROUTER_SITE_NAME`, `OPENROUTER_SITE_URL`,
-`ALLOWED_ORIGINS`, `CONTACT_EMAIL`, `CONTACT_LINKEDIN`, and `CONTACT_GITHUB`.
+`ALLOWED_ORIGINS`, `CONTACT_EMAIL`, `CONTACT_LINKEDIN`, `CONTACT_GITHUB`,
+`ADMIN_ACCESS_TEAM_DOMAIN`, `ADMIN_ACCESS_AUD`, and `ADMIN_ACCESS_EMAIL`.
 `API_KEY` is optional and currently unset.
 The live CORS allowlist is the comma-separated pair
 `https://matheusgalvao.com,https://www.matheusgalvao.com`. Secret **values**
 belong in Fly secrets or the local gitignored `.env`, never in Git or this
 document.
+
+Production chat monitoring uses the same SQLite volume through read-only
+`/admin/*` API routes. Before opening `/admin` in Pages, configure Cloudflare
+Access applications for `matheusgalvao.com/admin*` and
+`api.matheusgalvao.com/admin/*`, each restricted to the operator email. Set
+`ADMIN_ACCESS_TEAM_DOMAIN`, `ADMIN_ACCESS_AUD` (the API application's AUD tag),
+and `ADMIN_ACCESS_EMAIL` in Fly. The API validates the Access JWT's
+signature, issuer, audience, expiry, and email; the admin API fails closed when
+these settings are absent. Direct requests to the Fly hostname are also denied
+without a valid Access JWT.
 
 `fly.toml` sets `TRUST_PROXY=2` for the Cloudflare-to-Fly proxy chain and
 `SESSION_DB_PATH=/data/sessions.db`. It runs one `shared-cpu-1x` machine with

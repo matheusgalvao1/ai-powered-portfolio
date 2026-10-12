@@ -29,12 +29,14 @@ describe("createCorsMiddleware", () => {
     (origin) => {
       const { headers } = runCors(origin);
       expect(headers.get("Access-Control-Allow-Origin")).toBe(origin);
+      expect(headers.get("Access-Control-Allow-Credentials")).toBe("true");
     },
   );
 
   it("does not grant access to an unconfigured origin", () => {
     const { headers } = runCors("https://malicious.example");
     expect(headers.has("Access-Control-Allow-Origin")).toBe(false);
+    expect(headers.has("Access-Control-Allow-Credentials")).toBe(false);
   });
 
   it("ends preflight requests with 204", () => {

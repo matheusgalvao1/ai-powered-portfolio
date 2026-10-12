@@ -48,6 +48,10 @@ src/
 
 The client persists display messages locally and sends a `sessionId` with each request. The server owns the model-facing transcript in SQLite; the client does not send conversation history.
 
+## Conversation dashboard
+
+Run `pnpm dev` from the repository root and open `http://localhost:3000/admin` to inspect the local API database (`SESSION_DB_PATH`, default `./data/sessions.db`). In production, `/admin` uses the same page but requires Cloudflare Access; the API independently validates Access JWTs before returning chat data. The local database is separate from the production Fly volume.
+
 ## Configuration
 
 `VITE_API_BASE_URL` (see `.env.example`) — defaults to `http://localhost:3001` locally; production uses `https://api.matheusgalvao.com` (Cloudflare Pages build variable).

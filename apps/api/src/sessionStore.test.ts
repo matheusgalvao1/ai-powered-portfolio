@@ -40,6 +40,50 @@ describe("createSessionStore", () => {
     expect(store.loadRecentMessages(UUID).map((m) => m.content)).toEqual(["mine"]);
   });
 
+  it("summarizes recent conversations and returns their full transcript", () => {
+    let current = new Date("2026-10-03T10:00:00Z");
+    const { store } = makeStore(() => current);
+    store.appendMessage(UUID, "user", "How did Matheus lead the project?");
+    current = new Date("2026-10-03T10:01:00Z");
+    store.appendMessage(UUID, "assistant", "He led the project from discovery to launch.");
+    current = new Date("2026-10-03T10:02:00Z");
+    store.appendMessage(OTHER_UUID, "user", "What technologies does he use?");
+
+    const overview = store.dashboardOverview("all");
+    expect(overview).toMatchObject({
+      totalConversations: 2,
+      activeConversations: 2,
+      messagesInRange: 3,
+    });
+    expect(overview.conversations[1]).toMatchObject({
+      sessionId: UUID,
+      messageCount: 2,
+      title: "How did Matheus lead the project?",
+      latestMessage: "He led the project from discovery to launch.",
+    });
+    expect(store.loadConversation(UUID)?.messages.map((message) => message.content)).toEqual([
+      "How did Matheus lead the project?",
+      "He led the project from discovery to launch.",
+    ]);
+  });
+
+  it("filters dashboard activity by last update time", () => {
+    let current = new Date("2026-09-01T10:00:00Z");
+    const { store } = makeStore(() => current);
+    store.appendMessage(UUID, "user", "older chat");
+    current = new Date("2026-10-03T10:00:00Z");
+    store.appendMessage(OTHER_UUID, "user", "recent chat");
+
+    const overview = store.dashboardOverview("7d");
+    expect(overview.totalConversations).toBe(2);
+    expect(overview.activeConversations).toBe(1);
+    expect(overview.messagesInRange).toBe(1);
+    expect(overview.conversations.map((conversation) => conversation.sessionId)).toEqual([
+      OTHER_UUID,
+    ]);
+    expect(store.loadConversation("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")).toBeNull();
+  });
+
   it("windows to the most recent entries, oldest first", () => {
     const { store } = makeStore();
     for (let i = 0; i < 30; i += 1) {

@@ -33,6 +33,8 @@ export type SessionStore = {
   // clamped to MAX_HISTORY_MESSAGE_CHARS. Compaction will replace this with
   // "summary + entries after the cursor" in phase 3.
   loadRecentMessages(sessionId: string): ConversationMessage[];
+  dashboardOverview(range: "7d" | "30d" | "all"): DashboardOverview;
+  loadConversation(sessionId: string): StoredConversation | null;
   appendToolCall(
     sessionId: string,
     name: string,
@@ -46,6 +48,34 @@ export type SessionStore = {
   ): void;
   usageTokensSince(clientKey: string | null, sinceIso: string): number;
   close(): void;
+};
+
+export type ConversationSummary = {
+  sessionId: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  title: string;
+  latestMessage: string;
+};
+
+export type StoredConversation = {
+  sessionId: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: Array<{
+    seq: number;
+    role: "user" | "assistant" | "summary";
+    content: string;
+    createdAt: string;
+  }>;
+};
+
+export type DashboardOverview = {
+  totalConversations: number;
+  activeConversations: number;
+  messagesInRange: number;
+  conversations: ConversationSummary[];
 };
 
 export function createSessionStore({
@@ -149,9 +179,73 @@ export function createSessionStore({
     "SELECT COALESCE(SUM(input_tokens + output_tokens), 0) AS tokens FROM usage " +
       "WHERE created_at >= ? AND client_key = ?",
   );
+  const totalConversationsStmt = db.prepare(
+    "SELECT COUNT(*) AS count FROM sessions",
+  );
+  const countActiveConversationsStmt = db.prepare(
+    "SELECT COUNT(*) AS count FROM sessions WHERE updated_at >= ?",
+  );
+  const countMessagesStmt = db.prepare(
+    "SELECT COUNT(*) AS count FROM messages WHERE role IN ('user', 'assistant')",
+  );
+  const countMessagesSinceStmt = db.prepare(
+    "SELECT COUNT(*) AS count FROM messages WHERE role IN ('user', 'assistant') AND created_at >= ?",
+  );
+  const conversationSummariesAllStmt = db.prepare(`
+    SELECT s.id, s.created_at, s.updated_at,
+      COUNT(CASE WHEN m.role IN ('user', 'assistant') THEN 1 END) AS message_count,
+      (SELECT content FROM messages WHERE session_id = s.id AND role = 'user' ORDER BY seq ASC LIMIT 1) AS title,
+      (SELECT content FROM messages WHERE session_id = s.id AND role IN ('user', 'assistant') ORDER BY seq DESC LIMIT 1) AS latest_message
+    FROM sessions s
+    LEFT JOIN messages m ON m.session_id = s.id
+    GROUP BY s.id
+    ORDER BY s.updated_at DESC
+    LIMIT ?
+  `);
+  const conversationSummariesSinceStmt = db.prepare(`
+    SELECT s.id, s.created_at, s.updated_at,
+      COUNT(CASE WHEN m.role IN ('user', 'assistant') THEN 1 END) AS message_count,
+      (SELECT content FROM messages WHERE session_id = s.id AND role = 'user' ORDER BY seq ASC LIMIT 1) AS title,
+      (SELECT content FROM messages WHERE session_id = s.id AND role IN ('user', 'assistant') ORDER BY seq DESC LIMIT 1) AS latest_message
+    FROM sessions s
+    LEFT JOIN messages m ON m.session_id = s.id
+    WHERE s.updated_at >= ?
+    GROUP BY s.id
+    ORDER BY s.updated_at DESC
+    LIMIT ?
+  `);
+  const conversationMessagesStmt = db.prepare(
+    "SELECT seq, role, content, created_at FROM messages WHERE session_id = ? ORDER BY seq ASC",
+  );
 
   function nextSeq(stmt: StatementSync, sessionId: string): number {
     return (stmt.get(sessionId) as { next: number } | undefined)?.next ?? 1;
+  }
+
+  function rangeStart(range: "7d" | "30d" | "all"): string | null {
+    if (range === "all") {
+      return null;
+    }
+    const days = range === "7d" ? 7 : 30;
+    return new Date(now().getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+  }
+
+  function summariesFromRows(rows: unknown): ConversationSummary[] {
+    return (rows as Array<{
+      id: string;
+      created_at: string;
+      updated_at: string;
+      message_count: number;
+      title: string | null;
+      latest_message: string | null;
+    }>).map((row) => ({
+      sessionId: row.id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      messageCount: row.message_count,
+      title: row.title ?? "Conversation",
+      latestMessage: row.latest_message ?? "",
+    }));
   }
 
   return {
@@ -187,6 +281,57 @@ export function createSessionStore({
           role: row.role === "assistant" ? ("assistant" as const) : ("user" as const),
           content: row.content.slice(0, MAX_HISTORY_MESSAGE_CHARS),
         }));
+    },
+
+    dashboardOverview(range) {
+      const since = rangeStart(range);
+      const totalConversations = (totalConversationsStmt.get() as { count: number }).count;
+      const activeConversations = since
+        ? (countActiveConversationsStmt.get(since) as { count: number }).count
+        : totalConversations;
+      const messagesInRange = since
+        ? (countMessagesSinceStmt.get(since) as { count: number }).count
+        : (countMessagesStmt.get() as { count: number }).count;
+      const rows = since
+        ? conversationSummariesSinceStmt.all(since, 100)
+        : conversationSummariesAllStmt.all(100);
+
+      return {
+        totalConversations,
+        activeConversations,
+        messagesInRange,
+        conversations: summariesFromRows(rows),
+      };
+    },
+
+    loadConversation(sessionId) {
+      assertSessionId(sessionId);
+      const rows = conversationMessagesStmt.all(sessionId) as Array<{
+        seq: number;
+        role: string;
+        content: string;
+        created_at: string;
+      }>;
+      if (rows.length === 0) {
+        return null;
+      }
+      const session = db
+        .prepare("SELECT created_at, updated_at FROM sessions WHERE id = ?")
+        .get(sessionId) as { created_at: string; updated_at: string } | undefined;
+      if (!session) {
+        return null;
+      }
+      return {
+        sessionId,
+        createdAt: session.created_at,
+        updatedAt: session.updated_at,
+        messages: rows.map((row) => ({
+          seq: row.seq,
+          role: row.role === "assistant" || row.role === "summary" ? row.role : "user",
+          content: row.content,
+          createdAt: row.created_at,
+        })),
+      };
     },
 
     appendToolCall(sessionId, name, inputJson, resultJson) {
