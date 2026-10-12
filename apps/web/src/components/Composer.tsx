@@ -251,6 +251,10 @@ export function Composer({
           </button>
         )}
       </div>
+      <p className="composer-privacy">
+        Conversations are stored on the server to help improve this assistant —
+        please don&apos;t include anything you wouldn&apos;t share publicly.
+      </p>
     </form>
   );
 }

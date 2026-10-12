@@ -88,6 +88,10 @@ src/
 
 Conversations live in the SQLite database at `SESSION_DB_PATH` (default `./data/sessions.db`, gitignored). Message rows are append-only — the full transcript is kept for analytics; compaction (planned) will only add a cached summary + cursor, never rewrite history. Usage rows record tokens per request and back the daily budget circuit breaker, so budgets survive restarts.
 
+## Privacy
+
+What this deployment stores: chat transcripts keyed by a random, client-generated session UUID (no accounts, no cookies), tool-call records, and per-request token-usage rows that include the client IP (used only for abuse budgets). There is no automated retention yet — transcripts are kept until the operator deletes them, and the chat composer shows a one-line notice telling users that conversations are stored server-side. Keep that notice and this section in sync if storage changes.
+
 ## Deployment
 
 The `Dockerfile` at the repo root builds a single portable container (Fly.io today, AWS-mappable later — see `fly.toml` for the current manifest, including the persistent volume for SQLite and the `TRUST_PROXY` hop count).

@@ -227,13 +227,6 @@ export function ChatPanel() {
           aria-hidden="true"
         />
       ) : null}
-      {sidebarOpen && isCompact ? (
-        <div
-          className="sidebar-backdrop"
-          onClick={() => setSidebarOpen(false)}
-          aria-hidden="true"
-        />
-      ) : null}
       <Sidebar
         open={sidebarOpen}
         conversations={conversations}

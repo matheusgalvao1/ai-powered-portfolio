@@ -1,0 +1,46 @@
+# Weekly canary: verifies the Notion knowledge-base sync still works (the
+# integration token is valid, the page exists, the structure matches
+# knowledge/notion-template.md) so it breaks here instead of during a
+# content update or a deploy.
+#
+# Deliberately NO commit and NO artifact: this repo is public, workflow
+# artifacts are downloadable by anyone with read access, and the knowledge
+# base contains real personal content — it stays gitignored on purpose
+# (see README). To deploy fresh content, run `pnpm sync:notion` locally and
+# handle the file through your deployment pipeline.
+name: Sync Notion knowledge base (canary)
+
+on:
+  schedule:
+    # Mondays 06:00 UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-notion
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync knowledge base from Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_ROOT_PAGE_ID: ${{ secrets.NOTION_ROOT_PAGE_ID }}
+        run: pnpm sync:notion
