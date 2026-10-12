@@ -1,5 +1,9 @@
 :root {
   --sidebar-width: 260px;
+  --sidebar-center-offset: 130px;
+  --sidebar-collapsed-width: 64px;
+  --sidebar-collapsed-offset: 32px;
+  --orb-space: calc(64px + 0.75rem);
   --bg: #0a0a0a;
   --bg-panel: #111113;
   --bg-input: rgba(255, 255, 255, 0.04);
@@ -40,7 +44,7 @@ body {
 }
 
 .app {
-  height: 100dvh;
+  height: var(--app-height, 100dvh);
 }
 
 .sidebar-toggle {
@@ -299,7 +303,7 @@ body {
 }
 
 .chat {
-  height: 100dvh;
+  height: var(--app-height, 100dvh);
   max-width: 900px;
   margin: 0 auto;
   padding: 3.5rem 1.5rem;
@@ -316,8 +320,30 @@ body {
   overflow: visible;
 }
 
+.chat.sidebar-open {
+  width: calc(100% - var(--sidebar-width));
+  transform: translateX(var(--sidebar-center-offset));
+}
+
+.chat.sidebar-collapsed {
+  width: calc(100% - var(--sidebar-collapsed-width));
+  transform: translateX(var(--sidebar-collapsed-offset));
+}
+
+.chat.sidebar-open,
+.chat.sidebar-collapsed {
+  padding-left: calc(1.5rem + var(--orb-space));
+}
+
+/* Keep the chat fixed once the sidebar and the chat's orb gutter both fit. */
+@media (min-width: 1308px) {
+  .chat.sidebar-open {
+    width: calc(100% - var(--sidebar-collapsed-width));
+    transform: translateX(var(--sidebar-collapsed-offset));
+  }
+}
+
 .messages-viewport {
-  --orb-space: calc(64px + 0.75rem);
   flex: 1;
   min-height: 0;
   position: relative;
@@ -677,10 +703,14 @@ body {
 }
 
 .composer-privacy {
-  margin: 6px 2px 0;
+  width: 100%;
+  max-width: 34rem;
+  align-self: center;
+  margin: 0 2px;
   color: var(--text-faint);
   font-size: 0.75rem;
   line-height: 1.4;
+  text-align: center;
 }
 
 .composer-input {
@@ -787,7 +817,7 @@ body {
 
   .chat {
     padding-top: 4rem;
-    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    padding-bottom: 0;
   }
 
   .messages {
@@ -795,7 +825,15 @@ body {
   }
 
   .composer {
-    padding: 1rem 0 env(safe-area-inset-bottom);
+    padding: 0.5rem 0 env(safe-area-inset-bottom);
+  }
+
+  .composer:focus-within {
+    padding-bottom: 0;
+  }
+
+  .composer-input {
+    font-size: 1rem;
   }
 
   .sidebar-social.inline {

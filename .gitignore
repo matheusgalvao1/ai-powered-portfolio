@@ -3,6 +3,7 @@ node_modules/
 dist/
 .turbo/
 data/
+.openchamber/
 
 # Mac files
 .DS_Store

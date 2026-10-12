@@ -236,7 +236,12 @@ export function ChatPanel() {
         footer={isCompact ? <SocialLinks open /> : undefined}
       />
       {isCompact ? null : <SocialLinks open={sidebarOpen} />}
-      <section className="chat" aria-label="Chat">
+      <section
+        className={`chat${
+          isCompact ? "" : sidebarOpen ? " sidebar-open" : " sidebar-collapsed"
+        }`}
+        aria-label="Chat"
+      >
       <div
         className={`messages-viewport${fadeEdges.top ? " has-top-fade" : ""}${
           fadeEdges.bottom ? " has-bottom-fade" : ""
