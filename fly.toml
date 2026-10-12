@@ -8,7 +8,7 @@
 #        CONTACT_EMAIL=... CONTACT_LINKEDIN=... CONTACT_GITHUB=...
 #   4. fly deploy
 # Never put secrets in this file.
-app = "portfolio-api-CHANGE-ME"
+app = "matheus-portfolio-api"
 primary_region = "gru"
 
 [build]
