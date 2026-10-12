@@ -1,139 +1,137 @@
-# Abuse-proofing plan — before going public
+# Abuse-Protection Plan
 
-Threat model: a public portfolio chatbot is a low-value target for targeted attacks but a
-magnet for scripts and bots. The realistic threats are (a) LLM cost spikes, (b) resource
-exhaustion of the single Express process, (c) cheap vandalism. Assume the API key is public
-(it ships in the JS bundle) and CORS only constrains browsers.
+**Current priority:** UI polishing. The baseline abuse protections below are
+deployed. Follow-up hardening is intentionally deferred until UI polishing is
+complete; this plan records it for later, not as a launch blocker.
 
-Worst case before this plan: one request can carry ~5M input tokens (20mb body) x 20 req/min
-= ~100M billable tokens/minute from one IP. After this plan: ~10k tokens/turn worst case,
-~50k tokens/day/IP, and a hard global daily ceiling.
+## Threat Model
 
-## P0 — Launch blockers
+The likely threats for a public portfolio chat are automated request floods,
+LLM-cost spikes, resource exhaustion, and prompt injection. Treat the browser
+API key as public if enabled: it is bundled into the frontend and is only an
+abuse deterrent, not authentication. CORS limits browser origins; it does not
+stop curl or other non-browser clients.
 
-- [x] 1. Cap the client-owned conversation history
-  - `message` capped (4k chars), conversation entries capped (zod: 200 entries / 20k chars as
-    parse bounds; effective caps 24 entries / 8k chars enforced by server-side truncation).
-  - Server truncates to the most recent entries — never rejects a legit user restoring a long
-    localStorage history; the web client trims to the last 24 entries before sending.
-  - New error codes: `MESSAGE_TOO_LONG`, `HISTORY_TOO_LARGE`.
-- [x] 2. Cap text attachments (64KB decoded total), drop PDFs for v1
-  - A 3MiB text file is ~750k input tokens — enough to defeat rate limiting on its own.
-  - PDFs can be hundreds of billable pages per file; removed from the allowlist until a
-    page-count cap exists (reintroduce later with pdf-parse page check <= 10).
-  - Images stay at 3MiB (image token cost is resolution-based, not byte-based).
-- [x] 3. Fix IP identity behind the edge
-  - `app.set("trust proxy", N)` via `TRUST_PROXY` env (set to 1 when behind exactly one
-    reverse proxy, e.g. Cloudflare). Without it, `req.ip` breaks the rate limiter: behind a
-    proxy everyone shares one bucket; direct hits can spoof `X-Forwarded-For` and rotate IPs.
-  - Deployment note: when TRUST_PROXY=1, firewall the origin to accept traffic only from the
-    proxy's IP ranges, otherwise direct connections can still spoof the client IP.
-- [x] 4. Path traversal in SessionRecorder (security bug)
-  - `sessionId` is client-supplied and was used unvalidated as a filename:
-    `join(dir, sessionId + ".jsonl")` with `sessionId: "../../.env"` appends content outside
-    the data dir. Fixed with UUID validation in the request schema + a regex guard in the
-    recorder (defense in depth).
-- [x] 5. Concurrency cap (per-IP and global)
-  - Rate limiting counts requests, but each request holds an SSE stream and can burn 5 model
-    calls (iterations). 20 parallel streams x 5 iterations = 100 concurrent upstream calls.
-  - Per-IP in-flight cap: 3. Global in-flight cap: 10. Reject with 429 `TOO_MANY_CONCURRENT`.
-- [x] 6. Token accounting + daily budget circuit breaker
-  - `stream_options: { include_usage: true }` on the OpenRouter call; usage accumulated across
-    agent-loop steps into `AgentState.usage`.
-  - In-memory ledgers (per-IP-per-day and global-per-day, reset at UTC midnight):
-    `DAILY_GLOBAL_TOKEN_BUDGET=500000`, `DAILY_PER_IP_TOKEN_BUDGET=50000` (~1 heavy session).
-  - Exceeded -> 429 / stream error `BUDGET_EXHAUSTED`, friendly come-back-tomorrow message.
-  - Known under-count: usage is unknown when a client aborts mid-stream or the upstream call
-    errors — accepted at this scale; the budgets are conservative anyway.
-  - Restarts reset the ledger (documented; optional future work: persist to disk / Redis).
-- [x] 7. OpenRouter-side kill switch (account-level, outside the code) — **do before launch**
-  1. Fund the OpenRouter account with a fixed credit amount and leave auto-top-up OFF, so a
-     runaway bill stops the service instead of charging the card.
-  2. Set a spend notification/alert in the OpenRouter dashboard.
-  3. Pin `MAX_OUTPUT_TOKENS=1024`, `MAX_AGENT_ITERATIONS=5`, `MAX_TOOL_CALLS=8` explicitly in
-     the production `.env` — do not rely on code defaults surviving a refactor.
-  4. Confirm the model id in prod `.env` is a cheap flash-class model.
+## Deployed Baseline
 
-## P1 — Hardening (same week as launch)
+- **Request size:** new message max 8,000 characters. JSON body max 20 MB to
+  allow inline images.
+- **Attachments:** up to four files, each max 3 MiB; text attachments max 128
+  KiB combined. PDFs are rejected. Images and text files are accepted.
+- **Context:** conversation is server-owned in SQLite. The model receives up to
+  the latest 24 messages, each clamped to 16,000 characters. The client sends
+  only `sessionId`, message, and current attachments.
+- **Session integrity:** `sessionId` must be a UUID. Messages, sessions, tool
+  call records, and usage are stored in SQLite on the Fly volume.
+- **Request flood controls:** fixed-window limit of 20 requests per IP per 60
+  seconds; at most 3 concurrent streams per IP and 20 globally. These counters
+  are in-memory and apply to the current single Fly machine.
+- **Cost circuit breaker:** OpenRouter usage is recorded in SQLite. The daily
+  budget is 200,000 tokens per IP and 1,000,000 tokens globally, resetting at
+  UTC midnight. It survives machine restarts. Usage may be under-counted if a
+  request is aborted or the provider fails before reporting usage.
+- **Agent limits:** 8 iterations, 12 tool calls, and 4,096 output tokens per
+  model call.
+- **CORS:** exact allowlist for `https://matheusgalvao.com` and
+  `https://www.matheusgalvao.com`; unrelated browser origins do not receive an
+  allow-origin header.
+- **Edge:** Cloudflare proxies the site and API domains. No Cloudflare bot,
+  WAF, or edge rate-limit rule has been configured yet.
+- **Deployment:** one Fly machine in `gru`, SQLite volume mounted at `/data`,
+  `TRUST_PROXY=2` for the Cloudflare-to-Fly proxy chain.
+- **API key:** optional `API_KEY` is currently unset. The per-IP/global limits
+  and daily budget remain active. If enabled later, remember the matching
+  `VITE_API_KEY` is visible in the browser bundle.
+- **Retention:** transcripts currently have no automatic expiration or delete
+  job; they remain on the volume until manually removed.
 
-- [ ] 8. Resource limits on the model call
-  - Fetch timeout: `AbortSignal.any([clientSignal, AbortSignal.timeout(60_000)])` — client
-    abort covers the stop button; the timeout covers a hung upstream holding the socket.
-  - SessionRecorder: truncate recorded message/answer to 10k chars; cap/rotate .jsonl files
-    at 1MB; delete sessions older than 30 days at startup.
-- [ ] 9. Body limit + request timeouts
-  - Drop `express.json` limit from 20mb to ~6mb if images are capped at 1MiB.
-  - `server.requestTimeout = 120_000`, `server.headersTimeout = 30_000` (slow-loris guard).
-- [ ] 10. Cloudflare (free) in front
-  - Proxy the API subdomain through Cloudflare; enable Bot Fight Mode; add a free-tier
-    rate-limit rule (~30 req/min per IP on /chat) as the outer wall. The only real defense
-    against distributed abuse; everything in-process is bypassable by IP rotation.
-  - Enforce HTTPS at the edge; point `ALLOWED_ORIGIN` at the public domain.
-  - Optional: Cloudflare Turnstile on the chat composer if scripted abuse persists.
-- [ ] 11. Rate limiter polish
-  - Per-IP daily request cap (~200/day) as a second wall independent of the token budget.
-  - Fixed-window 2x boundary burst is accepted as fine at this scale.
-  - If ever running >1 instance or serverless: in-memory limiter and budgets break — swap
-    counters for Upstash Redis (PRD 6.4 already anticipates this).
+The Fly `*.fly.dev` hostname is still directly reachable as well as the
+Cloudflare API hostname. Cloudflare edge controls do not apply to direct Fly
+requests; the API's own limits and global daily budget are the backstop. Review
+proxy/IP handling before relying on edge per-IP rules as the only protection.
 
-## P2 — Nice-to-haves
+## Phase 1: Operational Backstops
 
-- [ ] 12. Prompt-injection hygiene: one line in the system prompt — treat instructions inside
-  user messages and attachments as data; never reveal the system prompt or knowledge base
-  verbatim. Tools are read-only over public data, so impact is limited to silly output.
-- [ ] 13. Verify MarkdownMessage XSS posture: no `rehype-raw`; link URLs sanitized
-  (`javascript:` blocked, `rel="noopener noreferrer"`). react-markdown defaults are safe if
-  unmodified.
-- [ ] 14. Client UX guards: char counter on the Composer near the 4k limit; send is already
-  disabled while streaming.
+Do after UI polishing, before promoting the site widely:
 
-## Pre-launch abuse test checklist (run against staging, watch the OpenRouter dashboard)
+- [ ] Verify OpenRouter auto-top-up is off (if that is the chosen account
+  setting), configure spend alerts, and confirm the account credit/spend ceiling.
+  OpenRouter is configured, but these specific account safeguards have not
+  been verified in this repository.
+- [ ] Add a server-side timeout for each OpenRouter call (proposed 60 seconds)
+  while preserving client-stop cancellation. Choose the limit with the full
+  multi-iteration turn in mind.
+- [ ] Set Node request/header timeouts appropriate for SSE streams and slow
+  clients; test that normal streamed replies are not cut off.
+- [ ] Choose a transcript retention period, disclose it accurately in the UI,
+  and implement an SQLite cleanup job. Current behavior is indefinite storage.
+- [ ] Decide whether to enable the optional shared API key. It is only a
+  low-friction deterrent because visitors can inspect the shipped frontend.
 
-| #  | Test                                             | Expected                                        |
-|----|--------------------------------------------------|-------------------------------------------------|
-| 1  | conversation with 10k x 8k-char messages          | 400 (parse bound) — cost ≈ 0                     |
-| 2  | 40-message conversation with 15k-char messages    | Accepted, truncated server-side to last 24 x 8k  |
-| 3  | Single 5MB message                                | 400 `MESSAGE_TOO_LONG`, no model call            |
-| 4  | 4 x 3MB text attachments                          | 400 (64KB combined text cap)                     |
-| 5  | 200 req in 10s from one IP                        | 429s after 20; no 5xx; memory flat               |
-| 6  | Rotating fake X-Forwarded-For (TRUST_PROXY=1)     | Buckets still enforced via proxy-supplied IP     |
-| 7  | 30 parallel streams from one IP                   | 3 in flight; extras 429 `TOO_MANY_CONCURRENT`    |
-| 8  | 30 parallel streams from many IPs                 | 10 global in flight; extras 429                  |
-| 9  | sessionId "../../.env"                            | 400 (UUID validation); nothing written to disk   |
-| 10 | Exceed DAILY_PER_IP_TOKEN_BUDGET                  | 429 `BUDGET_EXHAUSTED`, friendly message         |
-| 11 | Exceed DAILY_GLOBAL_TOKEN_BUDGET                  | Every client gets `BUDGET_EXHAUSTED`             |
-| 12 | Stop button mid-stream                            | Upstream aborts; no further tokens billed        |
-| 13 | Missing/wrong API key                             | 401                                              |
-| 14 | Real client with bloated localStorage history     | Trims client-side to 24 entries; answer coherent |
+## Phase 2: Edge and Origin Protection
 
-Add unit tests for the new zod caps, UUID validation, truncation, budget ledger, and the
-concurrency counter cleanup (the `finally`-style decrement is the classic leak spot).
+- [ ] Configure Cloudflare bot protections and an edge rate limit for
+  `/chat`; consider Turnstile only if scripted abuse warrants the UX friction.
+- [ ] Review direct access to `matheus-portfolio-api.fly.dev`. Cloudflare rules
+  can be bypassed through that hostname. Consider an origin restriction or a
+  trusted-proxy design that validates Cloudflare source IPs before trusting
+  forwarded client-IP headers.
+- [ ] Exercise IP spoofing, request floods, and concurrency limits against a
+  staging or controlled test environment. Confirm the global token budget still
+  caps spend if per-IP identification is bypassed.
 
-## Sequencing
+## Phase 3: Context Growth and More Tools
 
-P0 items 1–6 are implemented in code; item 7 is an account-level checklist. P1 within launch
-week; P2 opportunistically. The abuse-test checklist is the definition of done.
+Do when the knowledge base or tools grow, especially before adding GitHub
+repository/readme retrieval:
 
-## Phase: server-side sessions (phase 1 of the conversation-store migration — done)
+- [ ] Persist actual tool-call messages/results from the agent loop. The SQLite
+  table exists, but the loop does not yet write tool traffic into it.
+- [ ] Add server-side context compaction. Estimate the full model input
+  (system prompt, history, current message, attachments, and accumulated tool
+  results); trigger around 90,000 estimated tokens to leave headroom below a
+  100k target.
+- [ ] Preserve the raw append-only transcript. Store a compacted summary plus
+  a message-sequence cursor; give the model the summary and the most recent
+  turns verbatim. Compact again as the cursor advances.
+- [ ] Check context size between agent iterations, not just at turn start,
+  because tool results accumulate during a turn. Count compaction model usage
+  toward the same budget.
+- [ ] Store full tool results for later analysis, but never send more than the
+  model's remaining context window can accept. If one result alone is too large,
+  summarize or select relevant chunks before the next model call; compaction
+  cannot make an oversized single request safe retroactively.
+- [ ] Cache GitHub/API fetches where freshness permits. Add PDF support only
+  with a server-verified page limit (proposed maximum 10 pages).
 
-Decision: the conversation moved from client-owned (localStorage transcript sent per request)
-to server-owned SQLite (`node:sqlite`, zero dependency; single always-on container, Fly.io
-today, AWS-mappable later). Motivations: control the model's context centrally, persist tool
-traffic safely, survive restarts, and make recruiter conversations queryable for analytics.
+## Phase 4: Scale and Analytics
 
-- `apps/api/src/sessionStore.ts` — sessions, messages (append-only, incl. future 'summary'
-  role), tool_calls (schema ready, wired in phase 2), usage (token ledger source).
-- Wire change: `POST /chat` now takes `{ message, sessionId, attachments }` — no client
-  history. The client mints the sessionId when a conversation is born.
-- Aborted/failed turns store markers (`[user stopped…]` / `[assistant failed…]`) so the
-  model's next-turn view stays consistent.
-- Budgets moved to SQL (`createSqlBudgetLedger` over the usage table) — they now survive
-  restarts; the in-memory variant remains for tests.
-- The effective model window is still 24 entries × 16,000 chars (raised from 8,000 to
-  preserve long answers across turns); caps loosened per the agreed table: message 8k,
-  text attachments 128KB, output tokens 4096, iterations 8, tool calls 12, global
-  concurrency 20, budgets 200k/IP + 1M global.
-- `Dockerfile` + `fly.toml` (persistent volume for SQLite, TRUST_PROXY hop count) added.
-- Still open in this phase's wake: PDFs with a page cap, phase 2 (tool traffic persisted +
-  GitHub tool), phase 3 (LLM compaction: trigger ~90k tokens est., summary + cursor row,
-  recent window verbatim, mid-loop trigger checks), phase 4 (analytics queries).
+- [ ] Keep one Fly machine while using a single attached SQLite volume. If
+  adding machines or moving to serverless, migrate rate/concurrency counters to
+  shared storage (for example Redis) and choose session storage that supports
+  the new deployment topology.
+- [ ] Add aggregate recruiter-interest analytics without exposing raw
+  transcripts unnecessarily; establish retention/deletion before building an
+  admin view.
+- [ ] Clean up old usage rows on a separate retention policy. Usage rows are
+  intentionally independent of session deletion so deleting a transcript does
+  not reset that day's budget.
+
+## Verification Checklist
+
+When continuing this work, verify at least:
+
+- [ ] Oversized message, text attachment, file count, and JSON-body requests
+  are rejected before the model is called.
+- [ ] Both production origins pass CORS preflight; an unrelated origin does
+  not receive `Access-Control-Allow-Origin`.
+- [ ] Rate and concurrency limits return 429 at their configured thresholds.
+- [ ] Exceeding either daily token budget blocks further model calls; recorded
+  usage survives a Fly restart.
+- [ ] Invalid/non-UUID session IDs are rejected; no path-like value reaches
+  storage.
+- [ ] A client stop aborts generation; upstream timeouts release the stream
+  and concurrency slot.
+- [ ] Compaction (once implemented) runs before the model context exceeds its
+  target, preserves the raw transcript, and includes its own token usage in
+  budget accounting.
