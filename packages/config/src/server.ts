@@ -10,4 +10,9 @@ export const serverConfig = {
   // SQLite file for the session store (conversations, tool calls, usage).
   // Must sit on a persistent volume in production (see deploy/fly.toml).
   sessionDbPath: process.env.SESSION_DB_PATH ?? "./data/sessions.db",
+  adminAccess: {
+    teamDomain: process.env.ADMIN_ACCESS_TEAM_DOMAIN?.replace(/\/$/, ""),
+    audience: process.env.ADMIN_ACCESS_AUD?.trim(),
+    allowedEmail: process.env.ADMIN_ACCESS_EMAIL?.trim().toLowerCase(),
+  },
 };
