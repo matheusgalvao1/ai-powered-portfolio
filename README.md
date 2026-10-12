@@ -2,15 +2,14 @@
 
 A personal portfolio site with an embedded AI chatbot that answers questions about professional background, skills, projects, and experience — grounded in a knowledge base maintained in Notion, not the model's own memory.
 
-TypeScript throughout: a streaming Express API running a hand-rolled tool-calling agent loop, a Vite + React dev client, and shared packages for the wire contract, config, agent loop, and tools.
+TypeScript throughout: a streaming Express API running a hand-rolled tool-calling agent loop, a chat-first Vite + React frontend, and shared packages for the wire contract, config, agent loop, and tools.
 
 This repo is a pnpm monorepo:
 
 ```text
 apps/
   api/    REST API — chat endpoint, streaming, session logging
-  web/    Vite + React dev client used to exercise the API while the real frontend
-          (a static-exported Next.js app) is still being built
+  web/    Vite + React chat-first frontend, deployed as a static site to Cloudflare Pages
 packages/
   shared/   Wire-contract types (ChatRequest, ChatStreamEvent), Zod schemas, SSE helpers
   config/   Model/server/CORS/agent-limit configuration, read from env
@@ -32,7 +31,7 @@ scripts/
 
 ## Prerequisites
 
-- Node.js 20.12+ (uses the built-in `--env-file-if-exists` flag)
+- Node.js 22.5+ (`node:sqlite` is used by the API session store)
 - pnpm
 
 ## Setup
@@ -70,8 +69,7 @@ Open `http://localhost:3000` and chat.
 
 ```bash
 pnpm typecheck    # tsc --noEmit across every package/app
-pnpm build        # builds the web client (nothing else has a build step yet —
-                   # see apps/api/README.md for why)
+pnpm build        # builds the static web frontend for Cloudflare Pages
 ```
 
 ## Knowledge base
@@ -82,6 +80,12 @@ The chatbot's knowledge lives in Notion, not in this repo. `knowledge/knowledge-
 pnpm sync:notion
 ```
 
-This overwrites `knowledge/knowledge-base.md` from the Notion page referenced by `NOTION_ROOT_PAGE_ID`. The file is gitignored on purpose — it contains real personal content (name, contact info, etc.) synced from Notion, and this repo is meant to be shareable without exposing that. The API reads only this local file; it never calls Notion at request time.
+This overwrites `knowledge/knowledge-base.md` from the Notion page referenced by `NOTION_ROOT_PAGE_ID`. The file is gitignored on purpose because it contains personal content synced from Notion. The API reads this local file at startup; it never calls Notion at request time.
 
 Restart the API after syncing to pick up changes.
+
+## Production Deployment
+
+The production topology, current Cloudflare Pages/Fly settings, DNS, secrets,
+deployment commands, and local-only knowledge-file caveats are documented in
+[`docs/deployment.md`](docs/deployment.md).

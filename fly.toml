@@ -1,13 +1,9 @@
 # Fly.io deployment for the chat API. The web app is static — host it on
-# Cloudflare Pages and point ALLOWED_ORIGIN + OPENROUTER_SITE_URL at it.
+# Cloudflare Pages and point ALLOWED_ORIGINS + OPENROUTER_SITE_URL at it.
 #
-# First-time setup:
-#   1. fly apps create <unique-app-name>          (then set `app` below)
-#   2. fly volumes create portfolio_data --size 1 (SQLite lives on this volume)
-#   3. fly secrets set OPENROUTER_API_KEY=... API_KEY=... \
-#        CONTACT_EMAIL=... CONTACT_LINKEDIN=... CONTACT_GITHUB=...
-#   4. fly deploy
-# Never put secrets in this file.
+# Current production setup and redeploy instructions: docs/deployment.md.
+# Deploy from the repository root with `fly deploy --app matheus-portfolio-api`.
+# Never put secret values in this file.
 app = "matheus-portfolio-api"
 primary_region = "gru"
 
