@@ -171,51 +171,33 @@ export function AdminDashboard() {
           <span className="admin-brand-mark" aria-hidden="true">M</span>
           <span>Matheus Galvao</span>
         </a>
-        <div className="admin-environment">
-          <span className="admin-live-dot" />
-          {import.meta.env.DEV ? "Local archive" : "Protected archive"}
-          <span className="admin-environment-divider">/</span>
-          SQLite
+        <div className="admin-header-actions">
+          <span className="admin-environment">
+            <span className="admin-live-dot" />
+            {import.meta.env.DEV ? "Local" : "Protected"}
+            <span className="admin-environment-divider">/</span>
+            SQLite
+          </span>
+          <button
+            className="admin-refresh"
+            type="button"
+            aria-label="Refresh conversations"
+            title="Refresh conversations"
+            onClick={() => setRefreshVersion((version) => version + 1)}
+            disabled={loadingOverview}
+          >
+            Refresh
+          </button>
         </div>
       </header>
 
       <section className="admin-intro">
-        <div>
-          <p className="admin-eyebrow">Private workspace <span>01 / 01</span></p>
-          <h1>Conversation activity</h1>
-          <p className="admin-subtitle">
-            A quiet view of the questions reaching your portfolio assistant.
-          </p>
-        </div>
-        <button
-          className="admin-refresh"
-          type="button"
-          onClick={() => setRefreshVersion((version) => version + 1)}
-          disabled={loadingOverview}
-        >
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M13 8a5 5 0 0 1-8.7 3.35M3 8a5 5 0 0 1 8.7-3.35M3.2 11.3V8.5m0 2.8H6m6.8-6.6v2.8M12.8 4.7H10" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Refresh
-        </button>
-      </section>
-
-      <section className="admin-metrics" aria-label="Conversation metrics">
-        <article className="admin-metric">
-          <span className="admin-metric-label">Total conversations</span>
-          <strong>{loadingOverview ? "--" : overview?.totalConversations ?? 0}</strong>
-          <span className="admin-metric-note">Across this local database</span>
-        </article>
-        <article className="admin-metric">
-          <span className="admin-metric-label">Active in {range === "all" ? "total" : range === "7d" ? "7 days" : "30 days"}</span>
-          <strong>{loadingOverview ? "--" : overview?.activeConversations ?? 0}</strong>
-          <span className="admin-metric-note">Conversations with recent activity</span>
-        </article>
-        <article className="admin-metric">
-          <span className="admin-metric-label">Messages in range</span>
-          <strong>{loadingOverview ? "--" : overview?.messagesInRange ?? 0}</strong>
-          <span className="admin-metric-note">User and assistant messages</span>
-        </article>
+        <h1>Conversations</h1>
+        <p className="admin-intro-meta">
+          {loadingOverview
+            ? "Loading activity…"
+            : `${overview?.activeConversations ?? 0} conversations · ${overview?.messagesInRange ?? 0} messages · ${range === "all" ? "all time" : `last ${range === "7d" ? "7" : "30"} days`}`}
+        </p>
       </section>
 
       {error ? <div className="admin-error" role="alert">{error}</div> : null}
@@ -223,10 +205,7 @@ export function AdminDashboard() {
       <section className={`admin-browser${selectedId ? " has-selection" : ""}`}>
         <div className="admin-list-panel">
           <div className="admin-panel-heading">
-            <div>
-              <p className="admin-eyebrow">Archive</p>
-              <h2>Recent conversations</h2>
-            </div>
+            <h2>Recent conversations</h2>
             <span className="admin-result-count">
               {loadingOverview ? "..." : filteredConversations.length.toString().padStart(2, "0")}
             </span>
@@ -290,7 +269,6 @@ export function AdminDashboard() {
               ))
             )}
           </div>
-          <p className="admin-list-footnote">Showing up to 100 conversations, newest first.</p>
         </div>
 
         <div className="admin-detail-panel">
@@ -330,19 +308,11 @@ export function AdminDashboard() {
             </>
           ) : (
             <div className="admin-detail-empty">
-              <div className="admin-detail-orbit" aria-hidden="true"><span /></div>
-              <p className="admin-eyebrow">Conversation record</p>
               <h2>Select a conversation</h2>
-              <p>Choose a row to read the stored exchange. Sessions are anonymous.</p>
             </div>
           )}
         </div>
       </section>
-
-      <footer className="admin-footer">
-        <span>{import.meta.env.DEV ? "Local data only" : "Access controlled"}</span>
-        <span>Conversation records are anonymous; no recruiter identity is collected.</span>
-      </footer>
     </main>
   );
 }
