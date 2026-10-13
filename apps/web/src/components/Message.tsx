@@ -8,14 +8,18 @@ function ActivityIndicator({
   label,
   state,
   size,
+  showOrb,
 }: {
   label?: string;
   state: "connecting" | "solving";
   size: OrbSize;
+  showOrb: boolean;
 }) {
   return (
     <span className="message-activity">
-      <ThinkingOrb state={state} size={size} aria-label={label ?? state} />
+      {showOrb ? (
+        <ThinkingOrb state={state} size={size} aria-label={label ?? state} />
+      ) : null}
       {label ? <span className="message-activity-label">{label}</span> : null}
     </span>
   );
@@ -48,7 +52,8 @@ export function Message({
           <ActivityIndicator
             label={busy ? activity?.label : undefined}
             state={busy ? "solving" : "connecting"}
-            size={isCompact ? 20 : 64}
+            size={64}
+            showOrb={!isCompact}
           />
         ) : null}
         <div className="message-content">
