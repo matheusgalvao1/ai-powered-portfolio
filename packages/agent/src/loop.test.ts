@@ -41,7 +41,7 @@ function makeDeps(
 
 const emitInto = (events: ChatStreamEvent[]) => (event: ChatStreamEvent) => events.push(event);
 
-const toolCall = (id: string, name = "list_projects", input: unknown = {}) => ({
+const toolCall = (id: string, name = "test_tool", input: unknown = {}) => ({
   toolUseId: id,
   name,
   input,
@@ -75,7 +75,7 @@ describe("runAgentLoop", () => {
   it("accumulates token usage across steps, including tool-call steps", async () => {
     const { deps } = makeDeps([
       {
-        text: "Checking the project list.",
+        text: "Checking the requested information.",
         toolUses: [toolCall("t1")],
         usage: { inputTokens: 10, outputTokens: 2 },
       },
@@ -98,7 +98,7 @@ describe("runAgentLoop", () => {
 
   it("executes tool calls, appends assistant and tool messages, then completes", async () => {
     const { deps, events, calls } = makeDeps([
-      { text: "Let me check the project list.", toolUses: [toolCall("t1")] },
+      { text: "Let me check that.", toolUses: [toolCall("t1")] },
       { text: "Done.", toolUses: [] },
     ]);
 
@@ -116,19 +116,19 @@ describe("runAgentLoop", () => {
     expect(secondStep.messages).toHaveLength(3);
     expect(secondStep.messages[1]).toMatchObject({
       role: "assistant",
-      content: "Let me check the project list.",
-      tool_calls: [{ id: "t1", type: "function", function: { name: "list_projects", arguments: "{}" } }],
+      content: "Let me check that.",
+      tool_calls: [{ id: "t1", type: "function", function: { name: "test_tool", arguments: "{}" } }],
     });
     expect(secondStep.messages[2]).toEqual({
       role: "tool",
       tool_call_id: "t1",
-      name: "list_projects",
+      name: "test_tool",
       content: JSON.stringify({ data: 1 }),
     });
 
     expect(events.filter((event) => event.type === "tool")).toEqual([
-      { type: "tool", name: "list_projects", status: "started" },
-      { type: "tool", name: "list_projects", status: "completed" },
+      { type: "tool", name: "test_tool", status: "started" },
+      { type: "tool", name: "test_tool", status: "completed" },
     ]);
   });
 

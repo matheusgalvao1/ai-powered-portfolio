@@ -1,0 +1,112 @@
+name: Production release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://api.matheusgalvao.com' }}
+
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
+          fetch-depth: 0
+
+      - name: Verify release tag is on main
+        if: github.event_name == 'release'
+        run: |
+          git fetch origin main --no-tags
+          release_commit="$(git rev-parse HEAD)"
+          if ! git merge-base --is-ancestor "$release_commit" FETCH_HEAD; then
+            echo "The release tag must point to a commit on main."
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test API and web
+        run: |
+          pnpm --filter @portfolio/api test
+          pnpm --filter @portfolio/web test
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build web client
+        run: pnpm build
+
+      - name: Generate private knowledge base from Notion
+        run: pnpm sync:notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_ROOT_PAGE_ID: ${{ secrets.NOTION_ROOT_PAGE_ID }}
+
+      - name: Validate generated knowledge base
+        run: test -s knowledge/knowledge-base.md
+
+      - name: Validate API image build (manual dry run only)
+        if: github.event_name == 'workflow_dispatch'
+        run: docker build --tag portfolio-api-release:dry-run .
+
+      - name: Report dry-run completion
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "Validation completed. No production deployment was performed."
+
+      - name: Set up Fly CLI
+        if: github.event_name == 'release' && !github.event.release.prerelease
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
+
+      - name: Deploy API to Fly
+        if: github.event_name == 'release' && !github.event.release.prerelease
+        run: fly deploy --local-only --app matheus-portfolio-api
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Wait for API health
+        if: github.event_name == 'release' && !github.event.release.prerelease
+        run: >-
+          curl --fail --silent --show-error --retry 12 --retry-all-errors
+          --retry-delay 5 --max-time 15
+          https://api.matheusgalvao.com/health
+
+      - name: Verify direct Fly admin access is denied
+        if: github.event_name == 'release' && !github.event.release.prerelease
+        run: |
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            https://matheus-portfolio-api.fly.dev/admin/overview)"
+          if [ "$status" != "401" ]; then
+            echo "Expected direct Fly admin request to return 401; got $status."
+            exit 1
+          fi
+
+      - name: Deploy web client to Cloudflare Pages
+        if: github.event_name == 'release' && !github.event.release.prerelease
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy apps/web/dist --project-name=ai-powered-portfolio --branch=main
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

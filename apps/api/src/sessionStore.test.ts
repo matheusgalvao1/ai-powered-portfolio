@@ -117,8 +117,7 @@ describe("createSessionStore", () => {
 
   it("appends tool calls with per-session ordering", () => {
     const { store } = makeStore();
-    store.appendToolCall(UUID, "list_projects", "{}", '{"projects":[]}');
-    store.appendToolCall(UUID, "list_projects", "{}", '{"projects":[]}');
+    store.appendToolCall(UUID, "example_tool", "{}", '{"ok":true}');
     store.appendToolCall(OTHER_UUID, "get_contact_information", "{}", "{}");
 
     // Ordering is internal; here we just assert no error and independent seq.

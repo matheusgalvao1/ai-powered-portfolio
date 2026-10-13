@@ -3,8 +3,8 @@ import type { ToolSpec } from "@portfolio/tools";
 import { createOpenRouterStep } from "./openrouter.js";
 
 const TOOL_SPEC: ToolSpec = {
-  name: "list_projects",
-  description: "List portfolio projects.",
+  name: "test_tool",
+  description: "Example tool used by the streaming test.",
   inputJsonSchema: {
     type: "object",
     properties: {},
@@ -87,7 +87,7 @@ describe("createOpenRouterStep", () => {
                   {
                     index: 0,
                     id: "call_1",
-                    function: { name: "list_projects", arguments: "{\"limit\":" },
+                    function: { name: "test_tool", arguments: "{\"limit\":" },
                   },
                 ],
               },
@@ -128,7 +128,7 @@ describe("createOpenRouterStep", () => {
     expect(result.toolUses).toEqual([
       {
         toolUseId: "call_1",
-        name: "list_projects",
+        name: "test_tool",
         input: { limit: 5 },
       },
     ]);
