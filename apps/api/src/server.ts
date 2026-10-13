@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import { createPortfolioAgent } from "./agent.js";
 import { buildSystemPrompt } from "./prompt.js";
-import { loadPortfolioData } from "./portfolio.js";
 import { createSessionStore } from "./sessionStore.js";
 import { createSqlBudgetLedger } from "./budget.js";
 import { createChatService } from "./services/chatService.js";
@@ -35,11 +34,6 @@ const systemPrompt = buildSystemPrompt({
   knowledgeBase,
 });
 
-const portfolio = loadPortfolioData({
-  portfolioPath: join(repoRootDir, "knowledge/portfolio.json"),
-  examplePath: join(repoRootDir, "knowledge/portfolio.example.json"),
-});
-
 const agent = createPortfolioAgent({
   systemPrompt,
   apiKey: modelConfig.apiKey,
@@ -50,7 +44,6 @@ const agent = createPortfolioAgent({
   temperature: modelConfig.temperature,
   maxIterations: agentConfig.maxIterations,
   maxToolCalls: agentConfig.maxToolCalls,
-  portfolio,
 });
 
 const store = createSessionStore({ dbPath: serverConfig.sessionDbPath });

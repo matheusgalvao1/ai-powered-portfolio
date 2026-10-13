@@ -22,7 +22,7 @@ Each `/chat` request runs a hand-rolled agent loop (`@portfolio/agent`, 12-facto
 - **Bounded emptiness**: an empty tool-free response gets one retry with a system nudge; a second one fails the turn through the `max_steps` path.
 - **Truncation detection**: `stopReason` is captured per step. A `max_tokens` truncation completes with the partial text and logs a loud server-side warning; truncation isn't surfaced to the client yet by design.
 
-Tools (`@portfolio/tools`): `list_projects` and `get_contact_information`, reading deterministically from `knowledge/portfolio.json` (gitignored; copy `knowledge/portfolio.example.json` to start). The current Notion sync only generates `knowledge-base.md`; structured project data must be populated separately. Tool inputs are Zod-validated, unknown tools are rejected, execution errors become safe tool results (no stack traces), and tool calls per request are capped by `MAX_TOOL_CALLS`.
+Tools (`@portfolio/tools`): `get_contact_information`, reading public contact settings from environment variables. Background, experience, skills, and project details come from the Notion-generated Markdown knowledge base. Tool inputs are Zod-validated, unknown tools are rejected, execution errors become safe tool results (no stack traces), and tool calls per request are capped by `MAX_TOOL_CALLS`.
 
 ## Endpoints
 
@@ -82,7 +82,6 @@ src/
                              turn, complete/error events — knows nothing about HTTP
   agent.ts             Composition root: builds the tool registry, OpenRouter step,
                         and loop deps from @portfolio/agent + @portfolio/tools
-  portfolio.ts         Loads knowledge/portfolio.json (falls back to the example file)
   sources.ts           Derives citable sources from the knowledge base's ## headings
   prompt.ts            Builds the system prompt from prompts/system.md + the knowledge base
   sessionStore.ts      SQLite (node:sqlite): sessions, messages, tool calls, usage —

@@ -27,9 +27,11 @@ Production build settings:
 - `NODE_VERSION=22`
 - `VITE_API_BASE_URL=https://api.matheusgalvao.com`
 
-Pages builds and publishes automatically on pushes to `main`. Both apex and
-`www` are Pages custom domains; the API CORS allowlist accepts both exact
-origins. If the custom domains are re-created, attach them in the Pages
+Pages keeps Git-based preview deployments, but automatic production-branch
+deployments are disabled. The production release workflow uploads the built
+client with Wrangler only after the API deploy and health check succeed. Both
+apex and `www` are Pages custom domains; the API CORS allowlist accepts both
+exact origins. If the custom domains are re-created, attach them in the Pages
 project's **Custom domains** settings rather than pointing them at the API.
 
 `VITE_API_KEY` is currently unset because the API's optional `API_KEY` check is
@@ -89,33 +91,40 @@ the current instructions it prints.
 
 ## GitHub Automation
 
-- `.github/workflows/ci.yml` runs typecheck and web build on pushes to `main`
-  and pull requests.
-- Cloudflare Pages deploys the frontend from `main` through its GitHub
-  integration.
-- Fly deploys are currently **manual** with `fly deploy`; there is no
-  GitHub Actions Fly deploy workflow.
+- `.github/workflows/ci.yml` runs API/web tests, typecheck, and web build on
+  pushes to `main` and pull requests. CI does not deploy production.
+- `.github/workflows/production-release.yml` runs when a GitHub Release is
+  published. It verifies the tag is on `main`, syncs the Notion Markdown,
+  deploys the API to Fly, checks API health and the admin auth guard, then
+  deploys the Pages client from the same release commit.
+- To ship, merge changes through a PR, then publish a GitHub Release from a tag
+  on `main`. Do not deploy Pages directly from the Cloudflare dashboard; the
+  release workflow is the production gate for both services.
+- Running **Production release** manually from the `main` branch performs a
+  validation-only dry run; it never deploys production.
+- Cloudflare Pages automatic production-branch deployments must remain disabled
+  so the client cannot publish ahead of the API. Git-based preview deployments
+  may remain enabled.
+- Required GitHub Actions secrets: `CLOUDFLARE_API_TOKEN` (Cloudflare Pages
+  Edit permission), `FLY_API_TOKEN` (app-scoped Fly deploy token),
+  `NOTION_API_KEY`, and `NOTION_ROOT_PAGE_ID`. Required repository variables:
+  `CLOUDFLARE_ACCOUNT_ID` and `VITE_API_BASE_URL`.
 - `.github/workflows/sync-notion.yml` runs a weekly Monday canary and can be
   started manually. It verifies Notion access and the sync script but
   deliberately does not commit, upload an artifact, or deploy knowledge data.
-- The Notion canary reads the GitHub Actions secrets `NOTION_API_KEY` and
-  `NOTION_ROOT_PAGE_ID`.
 
 The GitHub repository is private. If Pages reports a repository permission
 error, check the Cloudflare Pages GitHub App's access to this repository.
 
 ## Knowledge Files and Sessions
 
-`knowledge/knowledge-base.md` and `knowledge/portfolio.json` are gitignored.
-The API reads them at startup, and the Dockerfile copies them into the image.
-Therefore, deploy from a local checkout where both files exist; a fresh GitHub
-Actions checkout does not contain them. Do not commit these personal files.
-`pnpm sync:notion` regenerates `knowledge/knowledge-base.md` locally only; the
-weekly workflow is a canary, not a production content-sync pipeline.
-
-The `portfolio.json` in this checkout was empty when the deployment was
-prepared; populate it with structured projects if the `list_projects` tool
-should return project entries.
+`knowledge/knowledge-base.md` is gitignored because it contains personal
+content synced from Notion. The API reads it at startup, and the Dockerfile
+copies it into the image. The production release workflow regenerates it from
+Notion immediately before the Fly deploy; a manual local `fly deploy` requires
+running `pnpm sync:notion` first. The assistant uses this Markdown context for
+background, experience, skills, and project questions. There is no separate
+structured project data file or `list_projects` tool now.
 
 Conversation messages and tool calls are stored in SQLite and currently have
 no automatic retention/deletion job. The privacy notice in the chat reflects
@@ -124,10 +133,6 @@ and survives machine restarts because it lives on the volume.
 
 ## Current Follow-ups
 
-- Add an automated, privacy-safe Notion publishing workflow if knowledge
-  updates should deploy without a local Fly CLI. The workflow must source
-  private knowledge files without committing them or exposing them as public
-  artifacts.
 - Add a retention policy/job for stored conversations.
 - Consider enabling the optional shared API key together with the matching
   Pages build variable; it is not a substitute for the rate and budget limits.

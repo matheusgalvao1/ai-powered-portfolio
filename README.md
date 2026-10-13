@@ -15,13 +15,10 @@ packages/
   config/   Model/server/CORS/agent-limit configuration, read from env
   agent/    State-reducer agent loop: native multi-turn messages, plain-text
             termination, OpenRouter streaming step
-  tools/    Tool registry + the structured portfolio tools (list_projects,
-            get_contact_information)
+  tools/    Tool registry + the get_contact_information tool
 knowledge/
   knowledge-base.md        Generated locally from Notion — not committed (see below)
   notion-template.md       The expected Notion page structure for the sync — follow it
-  portfolio.json           Structured data the agent's tools read — not committed
-  portfolio.example.json   Committed placeholder to copy from
 scripts/
   sync-notion.ts      Pulls the knowledge base from Notion into knowledge/
                       (page structure: knowledge/notion-template.md)
@@ -51,7 +48,6 @@ Fill in `.env`:
 | `OPENROUTER_SITE_NAME` | API | Optional app name used for OpenRouter attribution |
 | `NOTION_API_KEY` | Notion sync | Internal integration secret |
 | `NOTION_ROOT_PAGE_ID` | Notion sync | Root page containing the knowledge base |
-| `NOTION_PROJECTS_DATABASE_ID` | Notion sync | Not used yet — reserved for a future structured Projects database |
 
 `.env` is gitignored; both apps and scripts read it automatically, no manual `export` needed.
 
@@ -83,6 +79,8 @@ pnpm sync:notion
 This overwrites `knowledge/knowledge-base.md` from the Notion page referenced by `NOTION_ROOT_PAGE_ID`. The file is gitignored on purpose because it contains personal content synced from Notion. The API reads this local file at startup; it never calls Notion at request time.
 
 Restart the API after syncing to pick up changes.
+The production release workflow regenerates this file from Notion before it
+deploys the API; it is never committed or uploaded as a workflow artifact.
 
 ## Production Deployment
 

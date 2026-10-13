@@ -8,9 +8,7 @@ import {
 } from "@portfolio/agent";
 import {
   createGetContactInformationTool,
-  createListProjectsTool,
   createToolRegistry,
-  type PortfolioData,
 } from "@portfolio/tools";
 import { contactConfig } from "@portfolio/config";
 import type { ConversationMessage } from "@portfolio/shared";
@@ -25,7 +23,6 @@ type PortfolioAgentOptions = {
   temperature?: number;
   maxIterations: number;
   maxToolCalls: number;
-  portfolio: PortfolioData;
 };
 
 export type PortfolioAgent = {
@@ -40,7 +37,6 @@ export type PortfolioAgent = {
 
 export function createPortfolioAgent(options: PortfolioAgentOptions): PortfolioAgent {
   const registry = createToolRegistry([
-    createListProjectsTool(options.portfolio),
     createGetContactInformationTool(contactConfig),
   ]);
 

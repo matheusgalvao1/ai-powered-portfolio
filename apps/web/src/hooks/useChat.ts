@@ -50,7 +50,6 @@ const WELCOME_MESSAGE =
   "knowledge base, not guesses.";
 
 const TOOL_LABELS: Record<string, string> = {
-  list_projects: "Checking the project list",
   get_contact_information: "Looking up contact info",
 };
 

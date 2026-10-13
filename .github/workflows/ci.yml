@@ -1,8 +1,7 @@
 # Continuous verification for every push to main and every PR.
 #
-# This repo has no linter configured — `pnpm typecheck` + `pnpm build` are
-# the documented verification commands (see README), so CI runs those. If a
-# real linter (eslint/biome) is added later, wire it in here.
+# This repo has no linter configured. Run tests, typecheck, and build for PRs
+# and main pushes; production deploys are handled by production-release.yml.
 name: CI
 
 on:
@@ -32,6 +31,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Test API and web
+        run: |
+          pnpm --filter @portfolio/api test
+          pnpm --filter @portfolio/web test
 
       - name: Typecheck
         run: pnpm typecheck
