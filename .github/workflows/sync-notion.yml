@@ -1,33 +1,55 @@
-# Weekly canary: verifies the Notion knowledge-base sync still works (the
-# integration token is valid, the page exists, the structure matches
-# knowledge/notion-template.md) so it breaks here instead of during a
-# content update or a deploy.
-#
-# Deliberately NO commit and NO artifact: this repo is public, workflow
-# artifacts are downloadable by anyone with read access, and the knowledge
-# base contains real personal content — it stays gitignored on purpose
-# (see README). To deploy fresh content, run `pnpm sync:notion` locally and
-# handle the file through your deployment pipeline.
-name: Sync Notion knowledge base (canary)
+# Refresh Notion-backed context on the currently released API without deploying
+# the client or picking up unreleased code from main.
+name: Refresh production knowledge
 
 on:
   schedule:
     # Mondays 06:00 UTC
     - cron: "0 6 * * 1"
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy the new knowledge to Fly if it changed
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
-  group: sync-notion
-  cancel-in-progress: true
+  group: production-release
+  cancel-in-progress: false
 
 jobs:
-  sync:
+  refresh:
+    if: github.event_name == 'schedule' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the currently released API
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ vars.PRODUCTION_API_TAG }}
+          fetch-depth: 0
+
+      - name: Verify the production API tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRODUCTION_API_TAG: ${{ vars.PRODUCTION_API_TAG }}
+        run: |
+          if [ -z "$PRODUCTION_API_TAG" ]; then
+            echo "PRODUCTION_API_TAG is not set; publish a production release first."
+            exit 1
+          fi
+          gh release view "$PRODUCTION_API_TAG" --json tagName --jq '.tagName' >/dev/null
+          git fetch origin main --no-tags
+          api_commit="$(git rev-parse "${PRODUCTION_API_TAG}^{commit}")"
+          if ! git merge-base --is-ancestor "$api_commit" FETCH_HEAD; then
+            echo "PRODUCTION_API_TAG must point to a release on main."
+            exit 1
+          fi
 
       - uses: pnpm/action-setup@v4
 
@@ -39,8 +61,69 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Sync knowledge base from Notion
+      - name: Sync Notion and compare knowledge digest
+        id: sync
+        run: |
+          pnpm sync:notion
+          test -s knowledge/knowledge-base.md
+          digest="$(sha256sum knowledge/knowledge-base.md | cut -d ' ' -f 1)"
+          echo "sha256=$digest" >> "$GITHUB_OUTPUT"
+          if [ "$digest" = "$LAST_DEPLOYED_KNOWLEDGE_SHA" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_ROOT_PAGE_ID: ${{ secrets.NOTION_ROOT_PAGE_ID }}
-        run: pnpm sync:notion
+          LAST_DEPLOYED_KNOWLEDGE_SHA: ${{ vars.PRODUCTION_KNOWLEDGE_SHA }}
+
+      - name: Validate API image build (manual dry run only)
+        if: github.event_name == 'workflow_dispatch' && !inputs.deploy
+        run: docker build --tag portfolio-api-knowledge:dry-run .
+
+      - name: Report manual dry-run completion
+        if: github.event_name == 'workflow_dispatch' && !inputs.deploy
+        run: echo "Validation completed. No production deployment was performed."
+
+      - name: Set up Fly CLI
+        if: steps.sync.outputs.changed == 'true' && (github.event_name == 'schedule' || inputs.deploy)
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
+
+      - name: Deploy knowledge to the released API
+        if: steps.sync.outputs.changed == 'true' && (github.event_name == 'schedule' || inputs.deploy)
+        run: flyctl deploy --local-only --app matheus-portfolio-api
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Wait for API health
+        if: steps.sync.outputs.changed == 'true' && (github.event_name == 'schedule' || inputs.deploy)
+        run: >-
+          curl --fail --silent --show-error --retry 12 --retry-all-errors
+          --retry-delay 5 --max-time 15
+          https://api.matheusgalvao.com/health
+
+      - name: Verify direct Fly admin access is denied
+        if: steps.sync.outputs.changed == 'true' && (github.event_name == 'schedule' || inputs.deploy)
+        run: |
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            https://matheus-portfolio-api.fly.dev/admin/overview)"
+          if [ "$status" != "401" ]; then
+            echo "Expected direct Fly admin request to return 401; got $status."
+            exit 1
+          fi
+
+      - name: Record deployed knowledge digest
+        if: steps.sync.outputs.changed == 'true' && (github.event_name == 'schedule' || inputs.deploy)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KNOWLEDGE_SHA: ${{ steps.sync.outputs.sha256 }}
+        run: gh variable set PRODUCTION_KNOWLEDGE_SHA --body "$KNOWLEDGE_SHA"
+
+      - name: Report unchanged knowledge
+        if: steps.sync.outputs.changed != 'true'
+        run: echo "Notion content matches the last deployed knowledge; Fly was not redeployed."
+
+      - name: Report changed knowledge not deployed
+        if: github.event_name == 'workflow_dispatch' && !inputs.deploy && steps.sync.outputs.changed == 'true'
+        run: echo "Notion content changed. Re-run with deploy enabled to publish it to Fly."
