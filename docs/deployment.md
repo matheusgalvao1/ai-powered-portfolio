@@ -97,27 +97,27 @@ the current instructions it prints.
   published. It verifies the tag is on `main`, syncs the Notion Markdown,
   deploys the API to Fly, checks API health and the admin auth guard, then
   deploys the Pages client from the same release commit. After the API is
-  healthy, it records `PRODUCTION_API_TAG` and the deployed knowledge digest.
+  healthy, it records the released API tag and knowledge digest in GitHub's
+  `production-api` deployment history.
 - To ship, merge changes through a PR, then publish a GitHub Release from a tag
   on `main`. Do not deploy Pages directly from the Cloudflare dashboard; the
   release workflow is the production gate for both services.
 - Running **Production release** manually from the `main` branch performs a
   validation-only dry run; it never deploys production.
 - `.github/workflows/sync-notion.yml` checks Notion every Monday at 06:00 UTC.
-  It checks out `PRODUCTION_API_TAG`, hashes the generated Markdown, and only
-  redeploys the Fly API if the knowledge changed. It never deploys Pages.
-  Manual runs default to validation-only; set `deploy` to true to publish a
-  detected change immediately. `PRODUCTION_API_TAG` and
-  `PRODUCTION_KNOWLEDGE_SHA` track the running API code and knowledge digest.
+  It checks out the latest successful `production-api` deployment, hashes the
+   generated Markdown, and redeploys only the Fly API if the knowledge changed.
+   It never deploys Pages. Manual runs default to validation-only; set `deploy`
+   to true to publish a detected change immediately. `PRODUCTION_API_TAG` is a
+   bootstrap fallback; subsequent runs use successful API deployment records.
 - Cloudflare Pages automatic production-branch deployments must remain disabled
   so the client cannot publish ahead of the API. Git-based preview deployments
   may remain enabled.
 - Required GitHub Actions secrets: `CLOUDFLARE_API_TOKEN` (Cloudflare Pages
   Edit permission), `FLY_API_TOKEN` (app-scoped Fly deploy token),
   `NOTION_API_KEY`, and `NOTION_ROOT_PAGE_ID`. Required repository variables:
-  `CLOUDFLARE_ACCOUNT_ID`, `VITE_API_BASE_URL`, `PRODUCTION_API_TAG`, and
-  `PRODUCTION_KNOWLEDGE_SHA`. The release workflow initializes the production
-  tag and digest after a successful API deployment.
+  `CLOUDFLARE_ACCOUNT_ID`, `VITE_API_BASE_URL`, and the bootstrap
+  `PRODUCTION_API_TAG`.
 - `FLY_API_TOKEN` is app-scoped and expires after one year; rotate it before
   expiration and update the GitHub Actions secret.
 The GitHub repository is private. If Pages reports a repository permission
