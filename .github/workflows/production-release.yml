@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: production-release
@@ -58,7 +59,11 @@ jobs:
         run: pnpm build
 
       - name: Generate private knowledge base from Notion
-        run: pnpm sync:notion
+        id: sync-knowledge
+        run: |
+          pnpm sync:notion
+          digest="$(sha256sum knowledge/knowledge-base.md | cut -d ' ' -f 1)"
+          echo "sha256=$digest" >> "$GITHUB_OUTPUT"
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_ROOT_PAGE_ID: ${{ secrets.NOTION_ROOT_PAGE_ID }}
@@ -104,6 +109,16 @@ jobs:
             echo "Expected direct Fly admin request to return 401; got $status."
             exit 1
           fi
+
+      - name: Record deployed API release and knowledge digest
+        if: github.event_name == 'release' && !github.event.release.prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          KNOWLEDGE_SHA: ${{ steps.sync-knowledge.outputs.sha256 }}
+        run: |
+          gh variable set PRODUCTION_API_TAG --body "$RELEASE_TAG"
+          gh variable set PRODUCTION_KNOWLEDGE_SHA --body "$KNOWLEDGE_SHA"
 
       - name: Deploy web client to Cloudflare Pages
         if: github.event_name == 'release' && !github.event.release.prerelease

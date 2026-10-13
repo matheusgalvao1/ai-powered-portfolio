@@ -81,6 +81,8 @@ This overwrites `knowledge/knowledge-base.md` from the Notion page referenced by
 Restart the API after syncing to pick up changes.
 The production release workflow regenerates this file from Notion before it
 deploys the API; it is never committed or uploaded as a workflow artifact.
+The weekly Notion workflow redeploys only the API when the generated content
+changes; frontend deployments remain tied to a GitHub Release.
 
 ## Production Deployment
 
