@@ -109,6 +109,8 @@ the current instructions it prints.
   Edit permission), `FLY_API_TOKEN` (app-scoped Fly deploy token),
   `NOTION_API_KEY`, and `NOTION_ROOT_PAGE_ID`. Required repository variables:
   `CLOUDFLARE_ACCOUNT_ID` and `VITE_API_BASE_URL`.
+- `FLY_API_TOKEN` is app-scoped and expires after one year; rotate it before
+  expiration and update the GitHub Actions secret.
 - `.github/workflows/sync-notion.yml` runs a weekly Monday canary and can be
   started manually. It verifies Notion access and the sync script but
   deliberately does not commit, upload an artifact, or deploy knowledge data.

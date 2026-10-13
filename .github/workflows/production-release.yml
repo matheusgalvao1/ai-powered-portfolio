@@ -71,6 +71,17 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: docker build --tag portfolio-api-release:dry-run .
 
+      - name: Verify Wrangler setup (manual dry run only)
+        if: github.event_name == 'workflow_dispatch'
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: npm
+          wranglerVersion: 4.149.0
+          command: --version
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Report dry-run completion
         if: github.event_name == 'workflow_dispatch'
         run: echo "Validation completed. No production deployment was performed."
@@ -108,5 +119,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: npm
+          wranglerVersion: 4.149.0
           command: pages deploy apps/web/dist --project-name=ai-powered-portfolio --branch=main
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
