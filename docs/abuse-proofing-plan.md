@@ -18,15 +18,16 @@ stop curl or other non-browser clients.
   allow inline images.
 - **Attachments:** up to four files, each max 3 MiB; text attachments max 128
   KiB combined. PDFs are rejected. Images and text files are accepted.
-- **Context:** conversation is server-owned in SQLite. The model receives up to
-  the latest 24 messages, each clamped to 16,000 characters. The client sends
-  only `sessionId`, message, and current attachments.
+- **Context:** conversation is server-owned in Neon Postgres in production
+  (SQLite locally). The model receives up to the latest 24 messages, each
+  clamped to 16,000 characters. The client sends only `sessionId`, message,
+  and current attachments.
 - **Session integrity:** `sessionId` must be a UUID. Messages, sessions, tool
-  call records, and usage are stored in SQLite on the Fly volume.
+  call records, and usage are stored in Neon Postgres.
 - **Request flood controls:** fixed-window limit of 20 requests per IP per 60
   seconds; at most 3 concurrent streams per IP and 20 globally. These counters
   are in-memory and apply to the current single Fly machine.
-- **Cost circuit breaker:** OpenRouter usage is recorded in SQLite. The daily
+- **Cost circuit breaker:** OpenRouter usage is recorded in Postgres. The daily
   budget is 200,000 tokens per IP and 1,000,000 tokens globally, resetting at
   UTC midnight. It survives machine restarts. Usage may be under-counted if a
   request is aborted or the provider fails before reporting usage.
@@ -37,13 +38,14 @@ stop curl or other non-browser clients.
   allow-origin header.
 - **Edge:** Cloudflare proxies the site and API domains. No Cloudflare bot,
   WAF, or edge rate-limit rule has been configured yet.
-- **Deployment:** one Fly machine in `gru`, SQLite volume mounted at `/data`,
-  `TRUST_PROXY=2` for the Cloudflare-to-Fly proxy chain.
+- **Deployment:** one Fly machine in `iad`, Neon Postgres in `aws-us-east-1`,
+  `TRUST_PROXY=2` for the Cloudflare-to-Fly proxy chain. The old SQLite volume
+  is detached in `gru` and retained as a rollback copy.
 - **API key:** optional `API_KEY` is currently unset. The per-IP/global limits
   and daily budget remain active. If enabled later, remember the matching
   `VITE_API_KEY` is visible in the browser bundle.
 - **Retention:** transcripts currently have no automatic expiration or delete
-  job; they remain on the volume until manually removed.
+  job; they remain in Neon until manually removed.
 
 The Fly `*.fly.dev` hostname is still directly reachable as well as the
 Cloudflare API hostname. Cloudflare edge controls do not apply to direct Fly
@@ -85,8 +87,8 @@ Do after UI polishing, before promoting the site widely:
 Do when the knowledge base or tools grow, especially before adding GitHub
 repository/readme retrieval:
 
-- [ ] Persist actual tool-call messages/results from the agent loop. The SQLite
-  table exists, but the loop does not yet write tool traffic into it.
+- [ ] Persist actual tool-call messages/results from the agent loop. The
+  Postgres table exists, but the loop does not yet write tool traffic into it.
 - [ ] Add server-side context compaction. Estimate the full model input
   (system prompt, history, current message, attachments, and accumulated tool
   results); trigger around 90,000 estimated tokens to leave headroom below a
@@ -106,10 +108,11 @@ repository/readme retrieval:
 
 ## Phase 4: Scale and Analytics
 
-- [ ] Keep one Fly machine while using a single attached SQLite volume. If
-  adding machines or moving to serverless, migrate rate/concurrency counters to
-  shared storage (for example Redis) and choose session storage that supports
-  the new deployment topology.
+- [ ] Keep one Fly machine until rate-limit and concurrency counters move out
+  of process memory. Neon makes sessions and budget usage available to multiple
+  machines, but the in-memory request/concurrency maps still are not shared.
+  Before scaling out or moving to serverless, move those counters to shared
+  storage (for example Redis or Durable Objects).
 - [ ] Add aggregate recruiter-interest analytics without exposing raw
   transcripts unnecessarily; establish retention/deletion before building an
   admin view.
