@@ -31,7 +31,7 @@ export function createAdminRouter({
     router.use(authorize);
   }
 
-  router.get("/overview", (req, res) => {
+  router.get("/overview", async (req, res, next) => {
     const requestedRange = req.query.range;
     if (
       requestedRange !== undefined &&
@@ -43,22 +43,30 @@ export function createAdminRouter({
     }
 
     const range = (requestedRange as DashboardRange | undefined) ?? "7d";
-    res.json(store.dashboardOverview(range));
+    try {
+      res.json(await store.dashboardOverview(range));
+    } catch (error) {
+      next(error);
+    }
   });
 
-  router.get("/conversations/:sessionId", (req, res) => {
+  router.get("/conversations/:sessionId", async (req, res, next) => {
     const { sessionId } = req.params;
     if (!UUID_PATTERN.test(sessionId)) {
       res.status(400).json({ error: "Invalid session ID" });
       return;
     }
 
-    const conversation = store.loadConversation(sessionId);
-    if (!conversation) {
-      res.sendStatus(404);
-      return;
+    try {
+      const conversation = await store.loadConversation(sessionId);
+      if (!conversation) {
+        res.sendStatus(404);
+        return;
+      }
+      res.json(conversation);
+    } catch (error) {
+      next(error);
     }
-    res.json(conversation);
   });
 
   return router;

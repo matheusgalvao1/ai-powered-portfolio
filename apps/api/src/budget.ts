@@ -14,13 +14,13 @@ import type { SessionStore } from "./sessionStore.js";
 export type BudgetLedger = {
   // Whether the client — and the world — still has budget headroom for a new
   // model call. Checked before the agent runs; usage is recorded after.
-  hasHeadroom(clientKey: string): boolean;
+  hasHeadroom(clientKey: string): Promise<boolean>;
   record(
     clientKey: string,
     sessionId: string,
     usage: { inputTokens: number; outputTokens: number },
-  ): void;
-  remainingGlobalTokens(): number;
+  ): Promise<void>;
+  remainingGlobalTokens(): Promise<number>;
 };
 
 // Rotation of spoofed client IPs can grow the per-client map all day; past
@@ -44,20 +44,23 @@ export function createSqlBudgetLedger({
   now?: () => Date;
 }): BudgetLedger {
   return {
-    hasHeadroom(clientKey) {
+    async hasHeadroom(clientKey) {
       const since = utcDayStartIso(now);
+      const [globalTokens, clientTokens] = await Promise.all([
+        store.usageTokensSince(null, since),
+        store.usageTokensSince(clientKey, since),
+      ]);
       return (
-        store.usageTokensSince(null, since) < globalDailyTokens &&
-        store.usageTokensSince(clientKey, since) < perIpDailyTokens
+        globalTokens < globalDailyTokens && clientTokens < perIpDailyTokens
       );
     },
 
-    record(clientKey, sessionId, usage) {
-      store.recordUsage(sessionId, clientKey, usage);
+    async record(clientKey, sessionId, usage) {
+      await store.recordUsage(sessionId, clientKey, usage);
     },
 
-    remainingGlobalTokens() {
-      const used = store.usageTokensSince(null, utcDayStartIso(now));
+    async remainingGlobalTokens() {
+      const used = await store.usageTokensSince(null, utcDayStartIso(now));
       return Math.max(0, globalDailyTokens - used);
     },
   };
@@ -86,13 +89,13 @@ export function createMemoryBudgetLedger({
   }
 
   return {
-    hasHeadroom(clientKey) {
+    async hasHeadroom(clientKey) {
       rollDayIfNeeded();
       const clientTokens = perClient.get(clientKey) ?? 0;
       return globalTokens < globalDailyTokens && clientTokens < perIpDailyTokens;
     },
 
-    record(clientKey, _sessionId, usage) {
+    async record(clientKey, _sessionId, usage) {
       rollDayIfNeeded();
       const tokens = usage.inputTokens + usage.outputTokens;
       globalTokens += tokens;
@@ -103,7 +106,7 @@ export function createMemoryBudgetLedger({
       }
     },
 
-    remainingGlobalTokens() {
+    async remainingGlobalTokens() {
       rollDayIfNeeded();
       return Math.max(0, globalDailyTokens - globalTokens);
     },

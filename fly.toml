@@ -5,17 +5,17 @@
 # Deploy from the repository root with `fly deploy --app matheus-portfolio-api`.
 # Never put secret values in this file.
 app = "matheus-portfolio-api"
-primary_region = "gru"
+primary_region = "iad"
 
 [build]
 
 [env]
   PORT = "3001"
+  SESSION_STORE = "postgres"
   # Cloudflare -> Fly proxy -> app is two trusted hops, so req.ip resolves to
   # the real client IP for the rate limiter and budget ledger. Reduce to 1 if
   # the API is hit directly without Cloudflare.
   TRUST_PROXY = "2"
-  SESSION_DB_PATH = "/data/sessions.db"
 
 [http_service]
   internal_port = 3001
@@ -37,11 +37,6 @@ primary_region = "gru"
     grace_period = "10s"
     method = "get"
     path = "/health"
-
-[mounts]
-  source = "portfolio_data"
-  destination = "/data"
-  initial_size = 1
 
 [[vm]]
   size = "shared-cpu-1x"

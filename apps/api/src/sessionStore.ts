@@ -23,31 +23,31 @@ import {
 // Compaction later only ADDS a cached summary + cursor; message rows are
 // never rewritten, so analytics always see complete transcripts.
 export type SessionStore = {
-  ensureSession(sessionId: string): void;
+  ensureSession(sessionId: string): Promise<void>;
   appendMessage(
     sessionId: string,
     role: "user" | "assistant",
     content: string,
-  ): void;
+  ): Promise<void>;
   // The model-facing window: the most recent entries, oldest first, each
   // clamped to MAX_HISTORY_MESSAGE_CHARS. Compaction will replace this with
   // "summary + entries after the cursor" in phase 3.
-  loadRecentMessages(sessionId: string): ConversationMessage[];
-  dashboardOverview(range: "7d" | "30d" | "all"): DashboardOverview;
-  loadConversation(sessionId: string): StoredConversation | null;
+  loadRecentMessages(sessionId: string): Promise<ConversationMessage[]>;
+  dashboardOverview(range: "7d" | "30d" | "all"): Promise<DashboardOverview>;
+  loadConversation(sessionId: string): Promise<StoredConversation | null>;
   appendToolCall(
     sessionId: string,
     name: string,
     inputJson: string,
     resultJson: string,
-  ): void;
+  ): Promise<void>;
   recordUsage(
     sessionId: string,
     clientKey: string,
     usage: { inputTokens: number; outputTokens: number },
-  ): void;
-  usageTokensSince(clientKey: string | null, sinceIso: string): number;
-  close(): void;
+  ): Promise<void>;
+  usageTokensSince(clientKey: string | null, sinceIso: string): Promise<number>;
+  close(): Promise<void>;
 };
 
 export type ConversationSummary = {
@@ -249,12 +249,12 @@ export function createSessionStore({
   }
 
   return {
-    ensureSession(sessionId) {
+    async ensureSession(sessionId) {
       assertSessionId(sessionId);
       ensureSessionStmt.run(sessionId, now().toISOString(), now().toISOString());
     },
 
-    appendMessage(sessionId, role, content) {
+    async appendMessage(sessionId, role, content) {
       assertSessionId(sessionId);
       ensureSessionStmt.run(sessionId, now().toISOString(), now().toISOString());
       appendMessageStmt.run(
@@ -266,7 +266,7 @@ export function createSessionStore({
       );
     },
 
-    loadRecentMessages(sessionId) {
+    async loadRecentMessages(sessionId) {
       assertSessionId(sessionId);
       const rows = recentMessagesStmt.all(sessionId, MAX_HISTORY_MESSAGES) as Array<{
         seq: number;
@@ -283,7 +283,7 @@ export function createSessionStore({
         }));
     },
 
-    dashboardOverview(range) {
+    async dashboardOverview(range) {
       const since = rangeStart(range);
       const totalConversations = (totalConversationsStmt.get() as { count: number }).count;
       const activeConversations = since
@@ -304,7 +304,7 @@ export function createSessionStore({
       };
     },
 
-    loadConversation(sessionId) {
+    async loadConversation(sessionId) {
       assertSessionId(sessionId);
       const rows = conversationMessagesStmt.all(sessionId) as Array<{
         seq: number;
@@ -334,7 +334,7 @@ export function createSessionStore({
       };
     },
 
-    appendToolCall(sessionId, name, inputJson, resultJson) {
+    async appendToolCall(sessionId, name, inputJson, resultJson) {
       assertSessionId(sessionId);
       ensureSessionStmt.run(sessionId, now().toISOString(), now().toISOString());
       appendToolCallStmt.run(
@@ -347,7 +347,7 @@ export function createSessionStore({
       );
     },
 
-    recordUsage(sessionId, clientKey, usage) {
+    async recordUsage(sessionId, clientKey, usage) {
       recordUsageStmt.run(
         sessionId,
         clientKey,
@@ -357,14 +357,14 @@ export function createSessionStore({
       );
     },
 
-    usageTokensSince(clientKey, sinceIso) {
+    async usageTokensSince(clientKey, sinceIso) {
       const row = clientKey
         ? (usageSinceForClientStmt.get(sinceIso, clientKey) as { tokens: number } | undefined)
         : (usageSinceStmt.get(sinceIso) as { tokens: number } | undefined);
       return row?.tokens ?? 0;
     },
 
-    close() {
+    async close() {
       db.close();
     },
   };

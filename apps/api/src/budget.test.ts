@@ -22,53 +22,53 @@ function memoryLedgerWithClock(overrides: { global?: number; perIp?: number } = 
 const UUID = "7c9e6679-742f-40de-944b-e07fc1f90ae7";
 
 describe("createMemoryBudgetLedger", () => {
-  it("has headroom initially", () => {
+  it("has headroom initially", async () => {
     const { ledger } = memoryLedgerWithClock();
-    expect(ledger.hasHeadroom("1.1.1.1")).toBe(true);
+    expect(await ledger.hasHeadroom("1.1.1.1")).toBe(true);
   });
 
-  it("blocks a client past its daily budget", () => {
+  it("blocks a client past its daily budget", async () => {
     const { ledger } = memoryLedgerWithClock();
-    ledger.record("1.1.1.1", UUID, { inputTokens: 250, outputTokens: 150 });
+    await ledger.record("1.1.1.1", UUID, { inputTokens: 250, outputTokens: 150 });
 
-    expect(ledger.hasHeadroom("1.1.1.1")).toBe(false);
-    expect(ledger.hasHeadroom("2.2.2.2")).toBe(true);
+    expect(await ledger.hasHeadroom("1.1.1.1")).toBe(false);
+    expect(await ledger.hasHeadroom("2.2.2.2")).toBe(true);
   });
 
-  it("blocks everyone once the global budget is exhausted", () => {
+  it("blocks everyone once the global budget is exhausted", async () => {
     const { ledger } = memoryLedgerWithClock({ global: 1000, perIp: 400 });
 
     for (const ip of ["1.1.1.1", "2.2.2.2", "3.3.3.3"]) {
-      ledger.record(ip, UUID, { inputTokens: 400, outputTokens: 0 });
+      await ledger.record(ip, UUID, { inputTokens: 400, outputTokens: 0 });
     }
 
-    expect(ledger.hasHeadroom("1.1.1.1")).toBe(false);
-    expect(ledger.hasHeadroom("2.2.2.2")).toBe(false);
-    expect(ledger.hasHeadroom("9.9.9.9")).toBe(false);
+    expect(await ledger.hasHeadroom("1.1.1.1")).toBe(false);
+    expect(await ledger.hasHeadroom("2.2.2.2")).toBe(false);
+    expect(await ledger.hasHeadroom("9.9.9.9")).toBe(false);
   });
 
-  it("resets both budgets at UTC midnight", () => {
+  it("resets both budgets at UTC midnight", async () => {
     const { ledger, advanceMs } = memoryLedgerWithClock();
 
-    ledger.record("1.1.1.1", UUID, { inputTokens: 400, outputTokens: 0 });
-    expect(ledger.hasHeadroom("1.1.1.1")).toBe(false);
+    await ledger.record("1.1.1.1", UUID, { inputTokens: 400, outputTokens: 0 });
+    expect(await ledger.hasHeadroom("1.1.1.1")).toBe(false);
 
     advanceMs(DAY_MS);
-    expect(ledger.hasHeadroom("1.1.1.1")).toBe(true);
+    expect(await ledger.hasHeadroom("1.1.1.1")).toBe(true);
   });
 
-  it("never reports negative remaining tokens", () => {
+  it("never reports negative remaining tokens", async () => {
     const { ledger } = memoryLedgerWithClock({ global: 1000 });
-    ledger.record("1.1.1.1", UUID, { inputTokens: 2000, outputTokens: 0 });
-    expect(ledger.remainingGlobalTokens()).toBe(0);
+    await ledger.record("1.1.1.1", UUID, { inputTokens: 2000, outputTokens: 0 });
+    expect(await ledger.remainingGlobalTokens()).toBe(0);
   });
 
-  it("accumulates usage across records for a client", () => {
+  it("accumulates usage across records for a client", async () => {
     const { ledger } = memoryLedgerWithClock({ perIp: 400 });
-    ledger.record("1.1.1.1", UUID, { inputTokens: 150, outputTokens: 50 });
-    expect(ledger.hasHeadroom("1.1.1.1")).toBe(true);
-    ledger.record("1.1.1.1", UUID, { inputTokens: 150, outputTokens: 50 });
-    expect(ledger.hasHeadroom("1.1.1.1")).toBe(false);
+    await ledger.record("1.1.1.1", UUID, { inputTokens: 150, outputTokens: 50 });
+    expect(await ledger.hasHeadroom("1.1.1.1")).toBe(true);
+    await ledger.record("1.1.1.1", UUID, { inputTokens: 150, outputTokens: 50 });
+    expect(await ledger.hasHeadroom("1.1.1.1")).toBe(false);
   });
 });
 
@@ -91,35 +91,35 @@ describe("createSqlBudgetLedger", () => {
     };
   }
 
-  it("derives headroom from recorded usage rows", () => {
+  it("derives headroom from recorded usage rows", async () => {
     const { ledger } = sqlLedger();
-    ledger.record("1.1.1.1", UUID, { inputTokens: 250, outputTokens: 150 });
+    await ledger.record("1.1.1.1", UUID, { inputTokens: 250, outputTokens: 150 });
 
-    expect(ledger.hasHeadroom("1.1.1.1")).toBe(false);
-    expect(ledger.hasHeadroom("2.2.2.2")).toBe(true);
+    expect(await ledger.hasHeadroom("1.1.1.1")).toBe(false);
+    expect(await ledger.hasHeadroom("2.2.2.2")).toBe(true);
   });
 
-  it("enforces the global cap across clients", () => {
+  it("enforces the global cap across clients", async () => {
     const { ledger } = sqlLedger({ global: 1000, perIp: 400 });
 
     for (const ip of ["1.1.1.1", "2.2.2.2", "3.3.3.3"]) {
-      ledger.record(ip, UUID, { inputTokens: 400, outputTokens: 0 });
+      await ledger.record(ip, UUID, { inputTokens: 400, outputTokens: 0 });
     }
 
-    expect(ledger.remainingGlobalTokens()).toBe(0);
-    expect(ledger.hasHeadroom("9.9.9.9")).toBe(false);
+    expect(await ledger.remainingGlobalTokens()).toBe(0);
+    expect(await ledger.hasHeadroom("9.9.9.9")).toBe(false);
   });
 
-  it("resets at UTC midnight because the day filter moves", () => {
+  it("resets at UTC midnight because the day filter moves", async () => {
     const { ledger, advanceMs } = sqlLedger();
 
-    ledger.record("1.1.1.1", UUID, { inputTokens: 400, outputTokens: 0 });
-    expect(ledger.hasHeadroom("1.1.1.1")).toBe(false);
+    await ledger.record("1.1.1.1", UUID, { inputTokens: 400, outputTokens: 0 });
+    expect(await ledger.hasHeadroom("1.1.1.1")).toBe(false);
 
     // No rows are deleted — the ledger simply stops counting yesterday's
     // usage, which is what makes budgets survive restarts.
     advanceMs(DAY_MS);
-    expect(ledger.hasHeadroom("1.1.1.1")).toBe(true);
+    expect(await ledger.hasHeadroom("1.1.1.1")).toBe(true);
   });
 
   it("budgets survive a restart: a fresh ledger over the same file keeps the spend", async () => {
@@ -135,8 +135,8 @@ describe("createSqlBudgetLedger", () => {
         globalDailyTokens: 1000,
         perIpDailyTokens: 400,
       });
-      firstLedger.record("1.1.1.1", UUID, { inputTokens: 300, outputTokens: 100 });
-      first.close();
+      await firstLedger.record("1.1.1.1", UUID, { inputTokens: 300, outputTokens: 100 });
+      await first.close();
 
       const second = createSessionStore({ dbPath });
       const secondLedger = createSqlBudgetLedger({
@@ -144,9 +144,9 @@ describe("createSqlBudgetLedger", () => {
         globalDailyTokens: 1000,
         perIpDailyTokens: 400,
       });
-      expect(secondLedger.hasHeadroom("1.1.1.1")).toBe(false);
-      expect(secondLedger.remainingGlobalTokens()).toBe(600);
-      second.close();
+      expect(await secondLedger.hasHeadroom("1.1.1.1")).toBe(false);
+      expect(await secondLedger.remainingGlobalTokens()).toBe(600);
+      await second.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

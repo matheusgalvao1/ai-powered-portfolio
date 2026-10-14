@@ -5,6 +5,7 @@ import express from "express";
 import { createPortfolioAgent } from "./agent.js";
 import { buildSystemPrompt } from "./prompt.js";
 import { createSessionStore } from "./sessionStore.js";
+import { createPostgresSessionStore } from "./postgresStore.js";
 import { createSqlBudgetLedger } from "./budget.js";
 import { createChatService } from "./services/chatService.js";
 import { healthHandler } from "./handlers/health.js";
@@ -46,7 +47,20 @@ const agent = createPortfolioAgent({
   maxToolCalls: agentConfig.maxToolCalls,
 });
 
-const store = createSessionStore({ dbPath: serverConfig.sessionDbPath });
+function createConfiguredSessionStore() {
+  if (serverConfig.sessionStore === "sqlite") {
+    return createSessionStore({ dbPath: serverConfig.sessionDbPath });
+  }
+  if (serverConfig.sessionStore === "postgres") {
+    if (!serverConfig.databaseUrl) {
+      throw new Error("SESSION_STORE=postgres requires DATABASE_URL");
+    }
+    return createPostgresSessionStore({ connectionString: serverConfig.databaseUrl });
+  }
+  throw new Error(`Unsupported SESSION_STORE: ${serverConfig.sessionStore}`);
+}
+
+const store = createConfiguredSessionStore();
 const ledger = createSqlBudgetLedger({
   store,
   globalDailyTokens: budgetConfig.globalDailyTokens,
@@ -87,6 +101,21 @@ app.post(
   createChatHandler({ chatService }),
 );
 
-app.listen(serverConfig.port, isProduction ? "0.0.0.0" : "127.0.0.1", () => {
-  console.log(`API listening on http://localhost:${serverConfig.port}`);
-});
+async function startServer(): Promise<void> {
+  try {
+    // Fail startup rather than reporting healthy while the selected store is
+    // unavailable or its Postgres migrations have not been applied.
+    await store.usageTokensSince(null, new Date(0).toISOString());
+  } catch (error) {
+    console.error("Could not connect to the configured session store:", error);
+    await store.close();
+    process.exitCode = 1;
+    return;
+  }
+
+  app.listen(serverConfig.port, isProduction ? "0.0.0.0" : "127.0.0.1", () => {
+    console.log(`API listening on http://localhost:${serverConfig.port}`);
+  });
+}
+
+void startServer();

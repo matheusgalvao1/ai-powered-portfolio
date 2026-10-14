@@ -7,9 +7,10 @@
 export const serverConfig = {
   port: process.env.PORT ? Number(process.env.PORT) : 3001,
   trustProxy: process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : undefined,
-  // SQLite file for the session store (conversations, tool calls, usage).
-  // Must sit on a persistent volume in production (see deploy/fly.toml).
+  // SQLite file path when SESSION_STORE=sqlite. Postgres uses DATABASE_URL.
+  sessionStore: process.env.SESSION_STORE ?? "sqlite",
   sessionDbPath: process.env.SESSION_DB_PATH ?? "./data/sessions.db",
+  databaseUrl: process.env.DATABASE_URL,
   adminAccess: {
     teamDomain: process.env.ADMIN_ACCESS_TEAM_DOMAIN?.replace(/\/$/, ""),
     audience: process.env.ADMIN_ACCESS_AUD?.trim(),
