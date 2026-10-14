@@ -33,7 +33,7 @@ type Harness = {
 function makeService(agentState: AgentState = completeState()): Harness {
   const events: ChatStreamEvent[] = [];
   const agentRun = vi.fn(async () => agentState);
-  const ledgerHasHeadroom = vi.fn(() => true);
+  const ledgerHasHeadroom = vi.fn(async () => true);
 
   const store = createSessionStore({ dbPath: ":memory:" });
   const ledger = {
@@ -61,7 +61,7 @@ describe("createChatService", () => {
       emit(harness.events),
     );
 
-    expect(harness.store.loadRecentMessages(UUID)).toEqual([
+    expect(await harness.store.loadRecentMessages(UUID)).toEqual([
       { role: "user", content: "hi" },
       { role: "assistant", content: "ok" },
     ]);
@@ -73,8 +73,8 @@ describe("createChatService", () => {
 
   it("feeds prior stored history to the agent", async () => {
     const harness = makeService();
-    harness.store.appendMessage(UUID, "user", "earlier question");
-    harness.store.appendMessage(UUID, "assistant", "earlier answer");
+    await harness.store.appendMessage(UUID, "user", "earlier question");
+    await harness.store.appendMessage(UUID, "assistant", "earlier answer");
 
     await harness.service.streamChat(
       { message: "follow-up", clientKey: "1.1.1.1", sessionId: UUID },
@@ -99,7 +99,7 @@ describe("createChatService", () => {
     );
 
     expect(harness.agentRun).not.toHaveBeenCalled();
-    expect(harness.store.loadRecentMessages(UUID)).toEqual([]);
+    expect(await harness.store.loadRecentMessages(UUID)).toEqual([]);
     expect(harness.events).toEqual([
       {
         type: "error",
@@ -131,7 +131,7 @@ describe("createChatService", () => {
       (event) => events.push(event),
     );
 
-    expect(store.usageTokensSince("1.1.1.1", "2026-10-03T00:00:00.000Z")).toBe(15);
+    expect(await store.usageTokensSince("1.1.1.1", "2026-10-03T00:00:00.000Z")).toBe(15);
   });
 
   it("keeps the transcript consistent when the client aborts", async () => {
@@ -147,7 +147,7 @@ describe("createChatService", () => {
       emit(harness.events),
     );
 
-    expect(harness.store.loadRecentMessages(UUID)).toEqual([
+    expect(await harness.store.loadRecentMessages(UUID)).toEqual([
       { role: "user", content: "hi" },
       { role: "assistant", content: INTERRUPTED_MARKER },
     ]);
@@ -164,7 +164,7 @@ describe("createChatService", () => {
       emit(harness.events),
     );
 
-    expect(harness.store.loadRecentMessages(UUID)).toEqual([
+    expect(await harness.store.loadRecentMessages(UUID)).toEqual([
       { role: "user", content: "hi" },
       { role: "assistant", content: FAILED_MARKER },
     ]);
@@ -185,7 +185,7 @@ describe("createChatService", () => {
       emit(harness.events),
     );
 
-    const stored = harness.store.loadRecentMessages(UUID);
+    const stored = await harness.store.loadRecentMessages(UUID);
     expect(stored[0]?.content).toContain("[Attached files: jd.txt (text/plain)]");
   });
 });

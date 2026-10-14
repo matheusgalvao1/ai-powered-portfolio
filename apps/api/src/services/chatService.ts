@@ -46,20 +46,18 @@ export function createChatService({
     async streamChat({ message, clientKey, sessionId, attachments, signal }, emit) {
       const requestId = randomUUID();
 
-      if (!ledger.hasHeadroom(clientKey)) {
-        emit({
-          type: "error",
-          code: ChatErrorCode.BUDGET_EXHAUSTED,
-          message: BUDGET_EXHAUSTED_MESSAGE,
-        });
-        return;
-      }
-
-      emit({ type: "start", requestId, sessionId });
-
       try {
-        store.ensureSession(sessionId);
-        const history = store.loadRecentMessages(sessionId);
+        if (!(await ledger.hasHeadroom(clientKey))) {
+          emit({
+            type: "error",
+            code: ChatErrorCode.BUDGET_EXHAUSTED,
+            message: BUDGET_EXHAUSTED_MESSAGE,
+          });
+          return;
+        }
+
+        emit({ type: "start", requestId, sessionId });
+        const history = await store.loadRecentMessages(sessionId);
 
         // Save the question before generating so even an abort/error turn
         // leaves the transcript (and the model's next-turn view) consistent.
@@ -69,7 +67,7 @@ export function createChatService({
                 .map((attachment) => `${attachment.name} (${attachment.mimeType})`)
                 .join(", ")}]`
             : "";
-        store.appendMessage(sessionId, "user", message + attachmentNote);
+        await store.appendMessage(sessionId, "user", message + attachmentNote);
 
         const result = await agent.run(
           message,
@@ -82,7 +80,7 @@ export function createChatService({
         // Tokens were billed whether the turn completed, hit the iteration
         // cap, or got truncated — record before any status branch.
         if (result.usage) {
-          ledger.record(clientKey, sessionId, result.usage);
+          await ledger.record(clientKey, sessionId, result.usage);
         }
 
         if (result.status !== "complete") {
@@ -91,7 +89,7 @@ export function createChatService({
           console.error(
             `[chat] agent hit the iteration cap (status=${result.status}, requestId=${requestId})`,
           );
-          store.appendMessage(sessionId, "assistant", FAILED_MARKER);
+          await store.appendMessage(sessionId, "assistant", FAILED_MARKER);
           emit({
             type: "error",
             code: ChatErrorCode.INTERNAL_ERROR,
@@ -100,7 +98,7 @@ export function createChatService({
           return;
         }
 
-        store.appendMessage(sessionId, "assistant", result.answer);
+        await store.appendMessage(sessionId, "assistant", result.answer);
         emit({ type: "complete" });
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
@@ -108,7 +106,7 @@ export function createChatService({
           // socket is gone, but the marker keeps the transcript consistent
           // so the next turn tells the model the question was cut off.
           console.warn(`[chat] request ${requestId} aborted; generation cancelled`);
-          store.appendMessage(sessionId, "assistant", INTERRUPTED_MARKER);
+          await store.appendMessage(sessionId, "assistant", INTERRUPTED_MARKER);
           return;
         }
         console.error(error);

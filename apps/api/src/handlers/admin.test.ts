@@ -21,7 +21,7 @@ async function withAdminApi<T>(
   try {
     return await run(`http://127.0.0.1:${address.port}`, store);
   } finally {
-    store.close();
+    await store.close();
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
@@ -39,8 +39,8 @@ describe("admin router", () => {
 
   it("serves the overview and transcript when enabled", async () => {
     await withAdminApi(true, async (baseUrl, store) => {
-      store.appendMessage(SESSION_ID, "user", "A recruiter question");
-      store.appendMessage(SESSION_ID, "assistant", "A portfolio answer");
+      await store.appendMessage(SESSION_ID, "user", "A recruiter question");
+      await store.appendMessage(SESSION_ID, "assistant", "A portfolio answer");
 
       const overviewResponse = await fetch(`${baseUrl}/admin/overview?range=all`);
       expect(overviewResponse.status).toBe(200);

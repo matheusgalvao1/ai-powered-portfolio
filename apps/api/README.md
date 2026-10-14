@@ -108,3 +108,5 @@ See the root `.env.example`. `OPENROUTER_API_KEY` is required. `OPENROUTER_MODEL
 `API_KEY`, if set, requires every `POST /chat` request to send a matching `X-Api-Key` header — this is **not** user authentication (recruiters never sign in), just a deterrent against direct abuse of the endpoint beyond CORS. It's not a real secret once it ships in the web client's built bundle.
 
 Conversation history is capped (most recent 24 entries × 16,000 chars each, clamped server-side). Server-side LLM compaction past a token trigger is planned so the effective window can grow without unbounded cost.
+
+The API supports two `SessionStore` adapters: local SQLite (`SESSION_STORE=sqlite`, the default) and standard PostgreSQL (`SESSION_STORE=postgres`, `DATABASE_URL`). Do not put the production Neon URL in the local `.env`; production receives it as a Fly secret. Apply Postgres schema changes explicitly with `pnpm --filter @portfolio/api db:migrate` using a direct, non-pooled URL. The one-time SQLite importer requires `SQLITE_DB_PATH`, `DATABASE_URL`, and the explicit confirmation `ALLOW_DATABASE_IMPORT=YES`; it refuses to import into non-empty application tables.

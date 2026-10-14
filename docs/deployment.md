@@ -15,6 +15,13 @@ resource names and configuration, never secret values.
   `portfolio_data` (1 GB). Do not scale this single-volume app to multiple
   machines without redesigning the storage layer.
 
+The API includes both SQLite and standard-Postgres adapters. The deployed
+production app remains on the SQLite volume until the Neon cutover release is
+completed. The pending `fly.toml` change selects Postgres in `iad` and removes
+the volume mount, so do not deploy that manifest until Neon production has been
+migrated, `DATABASE_URL` is set as a Fly secret, and the release workflow is
+ready to run.
+
 ## Cloudflare Pages
 
 Production build settings:
@@ -77,9 +84,11 @@ signature, issuer, audience, expiry, and email; the admin API fails closed when
 these settings are absent. Direct requests to the Fly hostname are also denied
 without a valid Access JWT.
 
-`fly.toml` sets `TRUST_PROXY=2` for the Cloudflare-to-Fly proxy chain and
-`SESSION_DB_PATH=/data/sessions.db`. It runs one `shared-cpu-1x` machine with
-512 MB RAM and suspends it when idle. The app also has a public `*.fly.dev`
+The currently deployed release sets `TRUST_PROXY=2` for the Cloudflare-to-Fly
+proxy chain and `SESSION_DB_PATH=/data/sessions.db`. The pending target manifest
+sets `SESSION_STORE=postgres`; `DATABASE_URL` must be configured as a Fly
+secret before that release. The API currently runs one `shared-cpu-1x` machine
+with 512 MB RAM and suspends it when idle. The app also has a public `*.fly.dev`
 hostname; Cloudflare's per-IP edge controls do not protect that direct route.
 The API's own rate limits and global daily token budget still apply.
 
@@ -95,7 +104,8 @@ the current instructions it prints.
   pushes to `main` and pull requests. CI does not deploy production.
 - `.github/workflows/production-release.yml` runs when a GitHub Release is
   published. It verifies the tag is on `main`, syncs the Notion Markdown,
-  deploys the API to Fly, checks API health and the admin auth guard, then
+  applies Postgres migrations using `NEON_MIGRATION_DATABASE_URL`, deploys the API to Fly, checks
+  API health and the admin auth guard, then
   deploys the Pages client from the same release commit. After the API is
   healthy, it records the released API tag and knowledge digest in GitHub's
   `production-api` deployment history.
@@ -115,6 +125,7 @@ the current instructions it prints.
   may remain enabled.
 - Required GitHub Actions secrets: `CLOUDFLARE_API_TOKEN` (Cloudflare Pages
   Edit permission), `FLY_API_TOKEN` (app-scoped Fly deploy token),
+  `NEON_MIGRATION_DATABASE_URL` (direct, non-pooled Postgres URL),
   `NOTION_API_KEY`, and `NOTION_ROOT_PAGE_ID`. Required repository variables:
   `CLOUDFLARE_ACCOUNT_ID`, `VITE_API_BASE_URL`, and the bootstrap
   `PRODUCTION_API_TAG`.
@@ -137,6 +148,12 @@ Conversation messages and tool calls are stored in SQLite and currently have
 no automatic retention/deletion job. The privacy notice in the chat reflects
 that storage behavior. The usage table backs the daily budget circuit breaker
 and survives machine restarts because it lives on the volume.
+
+During the Neon cutover, take a final Fly volume snapshot, import the SQLite
+database once with `ALLOW_DATABASE_IMPORT=YES`, and verify transcripts and
+usage on Neon before deploying the Postgres-configured API. Keep the original
+Fly volume and snapshot through the rollback window; do not remove them as part
+of the region move.
 
 ## Current Follow-ups
 

@@ -87,6 +87,12 @@ jobs:
         if: github.event_name == 'release' && !github.event.release.prerelease
         uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
 
+      - name: Apply Postgres schema migrations
+        if: github.event_name == 'release' && !github.event.release.prerelease
+        run: pnpm --filter @portfolio/api db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.NEON_MIGRATION_DATABASE_URL }}
+
       - name: Deploy API to Fly
         if: github.event_name == 'release' && !github.event.release.prerelease
         run: flyctl deploy --local-only --app matheus-portfolio-api
