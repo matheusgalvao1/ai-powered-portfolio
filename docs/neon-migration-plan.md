@@ -15,8 +15,9 @@ with release `v1.1.0`: 11 sessions, 36 messages, 0 tool calls, and 18 usage rows
 (41,109 total tokens) were imported and verified. Fly now runs one machine in
 `iad` against Neon Postgres in `aws-us-east-1`. The original Fly SQLite volume
 and final snapshot remain detached in `gru` for rollback. The expiring Neon
-branches `neon-migration-dev` and `neon-import-rehearsal` contain only
-development/test data and expire on 2026-10-21.
+branch `neon-migration-dev` contains only synthetic integration-test data and
+expires on 2026-10-21. The one-time import rehearsal branch was deleted after
+verification because it held a duplicate copy of production transcripts.
 
 ## Target Topology
 
