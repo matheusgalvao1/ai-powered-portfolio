@@ -58,7 +58,7 @@ Responds as `text/event-stream` (SSE), one JSON object per `data:` frame:
 { type: "error"; code: string; message: string }
 ```
 
-The conversation lives **server-side** in the SQLite session store: the client only sends its session id, and the server loads the model-facing history (most recent entries, clamped) and appends each turn — including markers when a turn is stopped or fails. Aborted requests also abort the upstream model call.
+The conversation lives **server-side** in the configured session store: the client only sends its session id, and the server loads the model-facing history (most recent entries, clamped) and appends each turn — including markers when a turn is stopped or fails. Development uses SQLite; production uses Neon Postgres. Aborted requests also abort the upstream model call.
 
 Non-streaming error responses (400 validation, 429 rate limit/concurrency) use the PRD 15.2 envelope: `{ error: { code, message, requestId } }`.
 
@@ -84,14 +84,16 @@ src/
                         and loop deps from @portfolio/agent + @portfolio/tools
   sources.ts           Derives citable sources from the knowledge base's ## headings
   prompt.ts            Builds the system prompt from prompts/system.md + the knowledge base
-  sessionStore.ts      SQLite (node:sqlite): sessions, messages, tool calls, usage —
-                       the source of truth for model context and recruiter analytics
+  sessionStore.ts      SQLite (node:sqlite) adapter for sessions, messages,
+                       tool calls, and usage
+  postgresStore.ts     Standard PostgreSQL adapter used by production
+  migrations/          Versioned PostgreSQL schema migrations
   budget.ts            Daily token budget ledger (SQL-backed; memory variant for tests)
 ```
 
 ## Session storage
 
-Conversations live in the SQLite database at `SESSION_DB_PATH` (default `./data/sessions.db`, gitignored). Message rows are append-only — the full transcript is kept for analytics; compaction (planned) will only add a cached summary + cursor, never rewrite history. Usage rows record tokens per request and back the daily budget circuit breaker, so budgets survive restarts.
+Local development defaults to SQLite at `SESSION_DB_PATH` (`./data/sessions.db`, gitignored). Production selects Postgres with `SESSION_STORE=postgres` and the pooled Neon `DATABASE_URL` Fly secret. Message rows are append-only — the full transcript is kept for analytics; compaction (planned) will only add a cached summary + cursor, never rewrite history. Usage rows record tokens per request and back the daily budget circuit breaker, so budgets survive restarts.
 
 ## Privacy
 
@@ -103,10 +105,10 @@ The `Dockerfile` at the repo root builds a single portable container (Fly.io tod
 
 ## Environment variables
 
-See the root `.env.example`. `OPENROUTER_API_KEY` is required. `OPENROUTER_MODEL_ID` defaults to `deepseek/deepseek-v4-flash-0731`; `OPENROUTER_SITE_URL` and `OPENROUTER_SITE_NAME` are optional attribution headers. `ALLOWED_ORIGINS` is a comma-separated exact-origin allowlist for browser CORS. `ADMIN_ACCESS_TEAM_DOMAIN`, the API Access application's `ADMIN_ACCESS_AUD`, and `ADMIN_ACCESS_EMAIL` are required to expose production admin data. `PORT`, `MAX_AGENT_ITERATIONS` (default 8), `MAX_TOOL_CALLS` (default 12), `MAX_OUTPUT_TOKENS` (default 4096), `RATE_LIMIT_WINDOW_SECONDS`/`RATE_LIMIT_MAX_REQUESTS`, `MAX_CONCURRENT_PER_IP`/`MAX_CONCURRENT_GLOBAL`, `DAILY_PER_IP_TOKEN_BUDGET`/`DAILY_GLOBAL_TOKEN_BUDGET`, `SESSION_DB_PATH`, and `API_KEY` all have working defaults (or are disabled) if unset.
+See the root `.env.example`. `OPENROUTER_API_KEY` is required. `OPENROUTER_MODEL_ID` defaults to `deepseek/deepseek-v4-flash-0731`; `OPENROUTER_SITE_URL` and `OPENROUTER_SITE_NAME` are optional attribution headers. `ALLOWED_ORIGINS` is a comma-separated exact-origin allowlist for browser CORS. `ADMIN_ACCESS_TEAM_DOMAIN`, the API Access application's `ADMIN_ACCESS_AUD`, and `ADMIN_ACCESS_EMAIL` are required to expose production admin data. `PORT`, `SESSION_STORE` (defaults to `sqlite`), `SESSION_DB_PATH` (SQLite only), `DATABASE_URL` (required in Postgres mode), `MAX_AGENT_ITERATIONS` (default 8), `MAX_TOOL_CALLS` (default 12), `MAX_OUTPUT_TOKENS` (default 4096), rate/concurrency/budget limits, and `API_KEY` have working defaults (or are disabled) if unset.
 
 `API_KEY`, if set, requires every `POST /chat` request to send a matching `X-Api-Key` header — this is **not** user authentication (recruiters never sign in), just a deterrent against direct abuse of the endpoint beyond CORS. It's not a real secret once it ships in the web client's built bundle.
 
 Conversation history is capped (most recent 24 entries × 16,000 chars each, clamped server-side). Server-side LLM compaction past a token trigger is planned so the effective window can grow without unbounded cost.
 
-The API supports two `SessionStore` adapters: local SQLite (`SESSION_STORE=sqlite`, the default) and standard PostgreSQL (`SESSION_STORE=postgres`, `DATABASE_URL`). Do not put the production Neon URL in the local `.env`; production receives it as a Fly secret. Apply Postgres schema changes explicitly with `pnpm --filter @portfolio/api db:migrate` using a direct, non-pooled URL. The one-time SQLite importer requires `SQLITE_DB_PATH`, `DATABASE_URL`, and the explicit confirmation `ALLOW_DATABASE_IMPORT=YES`; it refuses to import into non-empty application tables.
+The API supports two `SessionStore` adapters: local SQLite (`SESSION_STORE=sqlite`, the default) and standard PostgreSQL (`SESSION_STORE=postgres`, `DATABASE_URL`). Do not put the production Neon URL in the local `.env`; production receives the pooled runtime URL as a Fly secret. Production releases apply schema migrations using the direct, non-pooled GitHub secret `NEON_MIGRATION_DATABASE_URL`. The one-time SQLite importer requires `SQLITE_DB_PATH`, `DATABASE_URL`, and the explicit confirmation `ALLOW_DATABASE_IMPORT=YES`; it refuses to import into non-empty application tables.

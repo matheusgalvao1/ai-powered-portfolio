@@ -10,23 +10,21 @@ changing the application data model.
 
 The portable implementation is in place: async store contract, SQLite and
 Postgres adapters, versioned Postgres schema, explicit migration/import
-commands, and Postgres integration tests in CI. It has been validated against
-local Postgres, including a SQLite import rehearsal, and against a short-lived
-Neon development branch. **Production is not cut over:** Fly still explicitly
-selects SQLite, the Fly volume is unchanged, and no production data has been
-moved. The Neon `production` branch has not been modified; the test schema and
-test rows are confined to `neon-migration-dev`, which expires on 2026-10-21.
+commands, and Postgres integration tests in CI. The production cutover completed
+with release `v1.1.0`: 11 sessions, 36 messages, 0 tool calls, and 18 usage rows
+(41,109 total tokens) were imported and verified. Fly now runs one machine in
+`iad` against Neon Postgres in `aws-us-east-1`. The original Fly SQLite volume
+and final snapshot remain detached in `gru` for rollback. The expiring Neon
+branches `neon-migration-dev` and `neon-import-rehearsal` contain only
+development/test data and expire on 2026-10-21.
 
 ## Target Topology
 
 - **Client:** Cloudflare Pages, unchanged.
-- **API:** Fly.io `matheus-portfolio-api`, initially unchanged except for its
-  database adapter and configuration.
+- **API:** Fly.io `matheus-portfolio-api` in `iad`.
 - **Production database:** the existing Neon project
-  `young-block-84379034`, branch `production`.
-- **Network placement:** verify the project's compute region and measure
-  Fly-`gru` to Neon query latency before production cutover; keep the DB close
-  to the API unless there is a measured reason not to.
+  `young-block-84379034`, branch `production`, region `aws-us-east-1`.
+- **Network placement:** Fly `iad` is colocated with the Neon US East region.
 - **Local development:** SQLite at `./data/sessions.db` by default. Local
   development must never use the production connection string.
 - **Postgres integration testing:** local Postgres service container in CI;

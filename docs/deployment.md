@@ -9,18 +9,18 @@ resource names and configuration, never secret values.
   this repository's `main` branch.
 - **Production domains:** `https://matheusgalvao.com` and
   `https://www.matheusgalvao.com` (both attached to the Pages project).
-- **API:** Fly.io app `matheus-portfolio-api` in `gru`, served at
+- **API:** Fly.io app `matheus-portfolio-api`, one `shared-cpu-1x`/512 MB
+  machine in `iad`, served at
   `https://api.matheusgalvao.com` and `https://matheus-portfolio-api.fly.dev`.
-- **Database:** SQLite at `/data/sessions.db` on the Fly volume
-  `portfolio_data` (1 GB). Do not scale this single-volume app to multiple
-  machines without redesigning the storage layer.
+- **Database:** Neon Postgres project `young-block-84379034`, branch
+  `production`, region `aws-us-east-1`. Runtime uses the pooled connection URL
+  from the Fly `DATABASE_URL` secret; migrations use the direct URL in GitHub's
+  `NEON_MIGRATION_DATABASE_URL` secret.
 
-The API includes both SQLite and standard-Postgres adapters. The deployed
-production app remains on the SQLite volume until the Neon cutover release is
-completed. The pending `fly.toml` change selects Postgres in `iad` and removes
-the volume mount, so do not deploy that manifest until Neon production has been
-migrated, `DATABASE_URL` is set as a Fly secret, and the release workflow is
-ready to run.
+Local development still defaults to SQLite. The original Fly volume
+`portfolio_data` (1 GB) remains detached in `gru` as a rollback copy, with a
+final snapshot retained by Fly. Do not reattach or delete it during ordinary
+deploys.
 
 ## Cloudflare Pages
 
@@ -50,12 +50,9 @@ deterrent, not authentication.
 ## Fly API
 
 The app configuration is in the root `fly.toml`; the portable image is built
-by the root `Dockerfile`. Deploy from the repository root with an authenticated
-Fly CLI:
-
-```sh
-fly deploy --app matheus-portfolio-api
-```
+by the root `Dockerfile`. Production deploys are release-gated: merge through a
+PR, then publish a GitHub Release from a tag on `main`. Do not manually run
+`fly deploy` in production.
 
 Check deployment health and logs with:
 
@@ -67,16 +64,17 @@ fly logs --app matheus-portfolio-api
 The Fly app's secret/environment variable names are `OPENROUTER_API_KEY`,
 `OPENROUTER_MODEL_ID`, `OPENROUTER_SITE_NAME`, `OPENROUTER_SITE_URL`,
 `ALLOWED_ORIGINS`, `CONTACT_EMAIL`, `CONTACT_LINKEDIN`, `CONTACT_GITHUB`,
-`ADMIN_ACCESS_TEAM_DOMAIN`, `ADMIN_ACCESS_AUD`, and `ADMIN_ACCESS_EMAIL`.
+`ADMIN_ACCESS_TEAM_DOMAIN`, `ADMIN_ACCESS_AUD`, `ADMIN_ACCESS_EMAIL`, and
+`DATABASE_URL` (pooled Neon runtime URL).
 `API_KEY` is optional and currently unset.
 The live CORS allowlist is the comma-separated pair
 `https://matheusgalvao.com,https://www.matheusgalvao.com`. Secret **values**
 belong in Fly secrets or the local gitignored `.env`, never in Git or this
 document.
 
-Production chat monitoring uses the same SQLite volume through read-only
-`/admin/*` API routes. Before opening `/admin` in Pages, configure Cloudflare
-Access applications for `matheusgalvao.com/admin*` and
+Production chat monitoring reads the same Neon Postgres database through
+read-only `/admin/*` API routes. Before opening `/admin` in Pages, configure
+Cloudflare Access applications for `matheusgalvao.com/admin*` and
 `api.matheusgalvao.com/admin/*`, each restricted to the operator email. Set
 `ADMIN_ACCESS_TEAM_DOMAIN`, `ADMIN_ACCESS_AUD` (the API application's AUD tag),
 and `ADMIN_ACCESS_EMAIL` in Fly. The API validates the Access JWT's
@@ -84,11 +82,9 @@ signature, issuer, audience, expiry, and email; the admin API fails closed when
 these settings are absent. Direct requests to the Fly hostname are also denied
 without a valid Access JWT.
 
-The currently deployed release sets `TRUST_PROXY=2` for the Cloudflare-to-Fly
-proxy chain and `SESSION_DB_PATH=/data/sessions.db`. The pending target manifest
-sets `SESSION_STORE=postgres`; `DATABASE_URL` must be configured as a Fly
-secret before that release. The API currently runs one `shared-cpu-1x` machine
-with 512 MB RAM and suspends it when idle. The app also has a public `*.fly.dev`
+The deployed release sets `TRUST_PROXY=2` for the Cloudflare-to-Fly proxy chain
+and `SESSION_STORE=postgres`. It runs one `shared-cpu-1x` machine in `iad` with
+512 MB RAM and suspends it when idle. The app also has a public `*.fly.dev`
 hostname; Cloudflare's per-IP edge controls do not protect that direct route.
 The API's own rate limits and global daily token budget still apply.
 
@@ -104,9 +100,9 @@ the current instructions it prints.
   pushes to `main` and pull requests. CI does not deploy production.
 - `.github/workflows/production-release.yml` runs when a GitHub Release is
   published. It verifies the tag is on `main`, syncs the Notion Markdown,
-  applies Postgres migrations using `NEON_MIGRATION_DATABASE_URL`, deploys the API to Fly, checks
-  API health and the admin auth guard, then
-  deploys the Pages client from the same release commit. After the API is
+  applies Postgres migrations using `NEON_MIGRATION_DATABASE_URL`, deploys the
+  API to Fly, checks API health and the admin auth guard, then deploys the Pages
+  client from the same release commit. After the API is
   healthy, it records the released API tag and knowledge digest in GitHub's
   `production-api` deployment history.
 - To ship, merge changes through a PR, then publish a GitHub Release from a tag
@@ -144,16 +140,15 @@ running `pnpm sync:notion` first. The assistant uses this Markdown context for
 background, experience, skills, and project questions. There is no separate
 structured project data file or `list_projects` tool now.
 
-Conversation messages and tool calls are stored in SQLite and currently have
-no automatic retention/deletion job. The privacy notice in the chat reflects
-that storage behavior. The usage table backs the daily budget circuit breaker
-and survives machine restarts because it lives on the volume.
+Conversation messages and tool calls are stored in Neon Postgres and currently
+have no automatic retention/deletion job. The privacy notice in the chat
+reflects that storage behavior. The usage table backs the daily budget circuit
+breaker and survives API restarts.
 
-During the Neon cutover, take a final Fly volume snapshot, import the SQLite
-database once with `ALLOW_DATABASE_IMPORT=YES`, and verify transcripts and
-usage on Neon before deploying the Postgres-configured API. Keep the original
-Fly volume and snapshot through the rollback window; do not remove them as part
-of the region move.
+The v1.1.0 cutover imported the SQLite data from the final Fly snapshot and
+verified sessions, messages, usage totals, and per-session counters. The
+original Fly volume remains detached in `gru` with snapshots available for
+rollback; do not destroy it until the rollback window has passed.
 
 ## Current Follow-ups
 

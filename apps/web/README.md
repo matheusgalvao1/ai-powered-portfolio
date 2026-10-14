@@ -46,11 +46,11 @@ src/
                                     VITE_API_BASE_URL/VITE_API_KEY
 ```
 
-The client persists display messages locally and sends a `sessionId` with each request. The server owns the model-facing transcript in SQLite; the client does not send conversation history.
+The client persists display messages locally and sends a `sessionId` with each request. The server owns the model-facing transcript (local SQLite in development, Neon Postgres in production); the client does not send conversation history.
 
 ## Conversation dashboard
 
-Run `pnpm dev` from the repository root and open `http://localhost:3000/admin` to inspect the local API database (`SESSION_DB_PATH`, default `./data/sessions.db`). In production, `/admin` uses the same page but requires Cloudflare Access; the API independently validates Access JWTs before returning chat data. The local database is separate from the production Fly volume.
+Run `pnpm dev` from the repository root and open `http://localhost:3000/admin` to inspect the local API database (`SESSION_DB_PATH`, default `./data/sessions.db`). In production, `/admin` uses the same page but requires Cloudflare Access; the API independently validates Access JWTs before returning chat data. Local SQLite is separate from the production Neon database.
 
 ## Configuration
 
