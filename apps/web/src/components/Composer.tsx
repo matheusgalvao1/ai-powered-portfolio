@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, KeyboardEvent } from "react";
 import type { ChatAttachment } from "@portfolio/shared";
+import { resizeComposerInput, shouldSubmitOnEnter } from "./composerUtils.js";
 import {
   ALLOWED_ATTACHMENT_MIME_TYPES,
   isAllowedAttachmentType,
@@ -11,33 +12,6 @@ import {
 } from "@portfolio/shared";
 
 type PendingAttachment = ChatAttachment & { dataUrl: string };
-
-type ComposerKeyboardState = {
-  key: string;
-  shiftKey: boolean;
-  ctrlKey: boolean;
-  altKey: boolean;
-  metaKey: boolean;
-  isComposing: boolean;
-};
-
-export function shouldSubmitOnEnter(event: ComposerKeyboardState): boolean {
-  return (
-    event.key === "Enter" &&
-    !event.shiftKey &&
-    !event.ctrlKey &&
-    !event.altKey &&
-    !event.metaKey &&
-    !event.isComposing
-  );
-}
-
-export function resizeComposerInput(
-  input: { style: { height: string }; scrollHeight: number },
-) {
-  input.style.height = "auto";
-  input.style.height = `${input.scrollHeight}px`;
-}
 
 // Browsers disagree on MIME types for less common extensions (.md, .csv), so
 // empty file.type falls back to an extension lookup.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resizeComposerInput, shouldSubmitOnEnter } from "./Composer.js";
+import { resizeComposerInput, shouldSubmitOnEnter } from "./composerUtils.js";
 
 describe("composer keyboard behavior", () => {
   const plainEnter = {
