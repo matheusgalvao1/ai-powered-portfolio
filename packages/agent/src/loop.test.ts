@@ -243,6 +243,7 @@ describe("runAgentLoop", () => {
       createInitialState("What is in these files?", [], [
         { name: "notes.txt", mimeType: "text/plain", data: "aGVsbG8=" },
         { name: "photo.png", mimeType: "image/png", data: "aGVsbG8=" },
+        { name: "resume.pdf", mimeType: "application/pdf", data: "JVBERi0x" },
       ]),
       deps,
       () => {},
@@ -253,16 +254,24 @@ describe("runAgentLoop", () => {
     expect(userMessage.role).toBe("user");
     const parts = userMessage.content as Array<Record<string, unknown>>;
 
-    expect(parts).toHaveLength(2);
+    expect(parts).toHaveLength(3);
     expect(parts[0]?.type).toBe("text");
     const text = parts[0]?.text as string;
     expect(text).toContain("What is in these files?");
     expect(text).toContain("[Attached file: notes.txt]");
     expect(text).toContain("<attached_file>\nhello\n</attached_file>");
     expect(text).toContain("[Attached image: photo.png]");
+    expect(text).toContain("[Attached PDF: resume.pdf]");
     expect(parts[1]).toEqual({
       type: "image_url",
       image_url: { url: "data:image/png;base64,aGVsbG8=" },
+    });
+    expect(parts[2]).toEqual({
+      type: "file",
+      file: {
+        filename: "resume.pdf",
+        file_data: "data:application/pdf;base64,JVBERi0x",
+      },
     });
   });
 });

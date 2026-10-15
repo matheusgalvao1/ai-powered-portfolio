@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { PDFDocument } from "pdf-lib";
 import type { ChatStreamEvent } from "@portfolio/shared";
+import { MAX_PDF_PAGES } from "@portfolio/shared";
 import { createSessionStore } from "../sessionStore.js";
 import { createMemoryBudgetLedger, createSqlBudgetLedger } from "../budget.js";
 import { createChatService } from "./chatService.js";
@@ -30,7 +32,10 @@ type Harness = {
   ledgerHasHeadroom: ReturnType<typeof vi.fn>;
 };
 
-function makeService(agentState: AgentState = completeState()): Harness {
+function makeService(
+  agentState: AgentState = completeState(),
+  supportsPdfInput = true,
+): Harness {
   const events: ChatStreamEvent[] = [];
   const agentRun = vi.fn(async () => agentState);
   const ledgerHasHeadroom = vi.fn(async () => true);
@@ -42,7 +47,7 @@ function makeService(agentState: AgentState = completeState()): Harness {
   };
 
   const service = createChatService({
-    agent: { run: agentRun } as unknown as PortfolioAgent,
+    agent: { run: agentRun, supportsPdfInput } as unknown as PortfolioAgent,
     store,
     ledger,
   });
@@ -51,6 +56,14 @@ function makeService(agentState: AgentState = completeState()): Harness {
 }
 
 const emit = (events: ChatStreamEvent[]) => (event: ChatStreamEvent) => events.push(event);
+
+async function makePdfBase64(pageCount = 1): Promise<string> {
+  const document = await PDFDocument.create();
+  for (let page = 0; page < pageCount; page += 1) {
+    document.addPage();
+  }
+  return Buffer.from(await document.save()).toString("base64");
+}
 
 describe("createChatService", () => {
   it("persists the question and the answer, then signals complete", async () => {
@@ -121,7 +134,7 @@ describe("createChatService", () => {
     });
     const agentRun = vi.fn(async () => completeState());
     const service = createChatService({
-      agent: { run: agentRun } as unknown as PortfolioAgent,
+      agent: { run: agentRun, supportsPdfInput: true } as unknown as PortfolioAgent,
       store,
       ledger,
     });
@@ -187,5 +200,106 @@ describe("createChatService", () => {
 
     const stored = await harness.store.loadRecentMessages(UUID);
     expect(stored[0]?.content).toContain("[Attached files: jd.txt (text/plain)]");
+  });
+
+  it("passes a validated PDF to the agent but stores only its attachment note", async () => {
+    const harness = makeService();
+    const data = await makePdfBase64();
+
+    await harness.service.streamChat(
+      {
+        message: "Summarize this",
+        clientKey: "1.1.1.1",
+        sessionId: UUID,
+        attachments: [{ id: "pdf1", name: "report.pdf", mimeType: "application/pdf", data }],
+      },
+      emit(harness.events),
+    );
+
+    expect(harness.agentRun.mock.calls[0]?.[2]).toEqual([
+      { name: "report.pdf", mimeType: "application/pdf", data },
+    ]);
+    const stored = await harness.store.loadRecentMessages(UUID);
+    expect(stored[0]?.content).toContain("[Attached files: report.pdf (application/pdf)]");
+    expect(stored[0]?.content).not.toContain(data);
+  });
+
+  it("rejects invalid PDFs before persisting or calling the agent", async () => {
+    const harness = makeService();
+
+    await harness.service.streamChat(
+      {
+        message: "Summarize this",
+        clientKey: "1.1.1.1",
+        sessionId: UUID,
+        attachments: [
+          {
+            id: "pdf1",
+            name: "broken.pdf",
+            mimeType: "application/pdf",
+            data: Buffer.from("not a PDF").toString("base64"),
+          },
+        ],
+      },
+      emit(harness.events),
+    );
+
+    expect(harness.agentRun).not.toHaveBeenCalled();
+    expect(await harness.store.loadRecentMessages(UUID)).toEqual([]);
+    expect(harness.events).toEqual([
+      expect.objectContaining({ type: "error", code: "VALIDATION_ERROR" }),
+    ]);
+  });
+
+  it("rejects over-page-limit PDFs before persisting or calling the agent", async () => {
+    const harness = makeService();
+
+    await harness.service.streamChat(
+      {
+        message: "Summarize this",
+        clientKey: "1.1.1.1",
+        sessionId: UUID,
+        attachments: [
+          {
+            id: "pdf1",
+            name: "long-report.pdf",
+            mimeType: "application/pdf",
+            data: await makePdfBase64(MAX_PDF_PAGES + 1),
+          },
+        ],
+      },
+      emit(harness.events),
+    );
+
+    expect(harness.agentRun).not.toHaveBeenCalled();
+    expect(await harness.store.loadRecentMessages(UUID)).toEqual([]);
+    expect(harness.events).toEqual([
+      expect.objectContaining({ type: "error", code: "VALIDATION_ERROR" }),
+    ]);
+  });
+
+  it("rejects PDFs when the configured model does not support native file input", async () => {
+    const harness = makeService(completeState(), false);
+
+    await harness.service.streamChat(
+      {
+        message: "Summarize this",
+        clientKey: "1.1.1.1",
+        sessionId: UUID,
+        attachments: [
+          { id: "pdf1", name: "report.pdf", mimeType: "application/pdf", data: "JVBERi0x" },
+        ],
+      },
+      emit(harness.events),
+    );
+
+    expect(harness.agentRun).not.toHaveBeenCalled();
+    expect(await harness.store.loadRecentMessages(UUID)).toEqual([]);
+    expect(harness.events).toEqual([
+      expect.objectContaining({
+        type: "error",
+        message: expect.stringContaining("OPENROUTER_MODEL_ID=~openai/gpt-luna-latest"),
+      }),
+    ]);
   });
 });

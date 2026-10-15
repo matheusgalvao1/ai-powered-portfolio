@@ -1,7 +1,14 @@
 import type { ToolSpec } from "@portfolio/tools";
-import type { StepFn, StepUsage, ToolUseRequest } from "./types.js";
+import type { AgentMessage, StepFn, StepUsage, ToolUseRequest } from "./types.js";
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
+// Native file processing is enabled only for the model whose OpenRouter route
+// is configured for PDF input; unknown model IDs fail closed.
+const NATIVE_PDF_MODEL_IDS = new Set(["~openai/gpt-luna-latest"]);
+
+export function supportsNativePdfInput(modelId: string): boolean {
+  return NATIVE_PDF_MODEL_IDS.has(modelId);
+}
 
 type OpenRouterOptions = {
   apiKey: string;
@@ -86,6 +93,15 @@ function parseToolInput(inputJson: string): unknown {
   }
 }
 
+function containsPdfInput(messages: AgentMessage[]): boolean {
+  return messages.some(
+    (message) =>
+      message.role === "user" &&
+      Array.isArray(message.content) &&
+      message.content.some((part) => part.type === "file"),
+  );
+}
+
 // The real StepFn: one streaming OpenRouter Chat Completions call with the
 // native message array (history, this turn's request with any attachment
 // content parts, and accumulated tool calls/results). OpenRouter normalizes
@@ -108,6 +124,11 @@ export function createOpenRouterStep(options: OpenRouterOptions): StepFn {
   const endpoint = `${baseUrl}/chat/completions`;
 
   return async ({ messages, signal, onToken, onThinking }) => {
+    const hasPdfInput = containsPdfInput(messages);
+    if (hasPdfInput && !supportsNativePdfInput(options.modelId)) {
+      throw new Error("The configured OpenRouter model does not support native PDF input.");
+    }
+
     const headers: Record<string, string> = {
       Authorization: `Bearer ${options.apiKey}`,
       "Content-Type": "application/json",
@@ -132,6 +153,9 @@ export function createOpenRouterStep(options: OpenRouterOptions): StepFn {
         ],
         tools,
         tool_choice: "auto",
+        ...(hasPdfInput
+          ? { plugins: [{ id: "file-parser", pdf: { engine: "native" } }] }
+          : {}),
         stream: true,
         stream_options: { include_usage: true },
         max_tokens: options.maxOutputTokens,

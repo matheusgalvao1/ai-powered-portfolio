@@ -72,13 +72,12 @@ const concurrencyMiddleware = createConcurrencyMiddleware();
 
 const app = express();
 const isProduction = process.env.NODE_ENV === "production";
+const chatBodyParser = express.json({ limit: "20mb" });
 // TRUST_PROXY must be set in production (behind Cloudflare/nginx) for req.ip
 // to be the real client IP — the rate limiter and budget ledger key on it.
 if (serverConfig.trustProxy !== undefined) {
   app.set("trust proxy", serverConfig.trustProxy);
 }
-// Inline base64 attachments: worst case 4 files x 3 MiB raw ~= 16 MiB of JSON.
-app.use(express.json({ limit: "20mb" }));
 app.use(corsMiddleware);
 
 app.get("/health", healthHandler);
@@ -98,6 +97,9 @@ app.post(
   apiKeyMiddleware,
   rateLimitMiddleware,
   concurrencyMiddleware,
+  // Admit the request before allocating/parsing the inline base64 body.
+  // Four 3 MiB files expand to roughly 16 MiB of JSON.
+  chatBodyParser,
   createChatHandler({ chatService }),
 );
 

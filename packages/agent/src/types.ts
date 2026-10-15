@@ -9,13 +9,13 @@ export type UserAttachment = {
   data: string;
 };
 
-// Multimodal content parts for user messages, in the OpenAI-compatible shape
-// OpenRouter normalizes across providers. Text attachments do not become
-// parts — they are inlined into the text part and work with any model.
-// Only images are sent as parts; PDFs are not accepted at the wire layer.
+// Multimodal content parts for user messages in OpenRouter's compatible
+// shape. Text attachments are inlined; images use image_url; PDFs use a file
+// part and are gated to a model configured for native PDF input.
 export type UserContentPart =
   | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string } };
+  | { type: "image_url"; image_url: { url: string } }
+  | { type: "file"; file: { filename: string; file_data: string } };
 
 export type ToolCallPayload = {
   id: string;

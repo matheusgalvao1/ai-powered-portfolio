@@ -26,22 +26,23 @@ export const ConversationMessageSchema = z.object({
 });
 export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
 
-// Attachments are base64 data URLs sent inline in the request body. Images
-// become multimodal content parts (they need a vision-capable model); text
-// files are inlined into the prompt and work with any model, so their
-// combined decoded size is capped — text token cost is byte-based and would
-// otherwise dwarf what rate limiting can contain. PDFs are not accepted:
-// per-page token billing is effectively unbounded per file; reintroduce only
-// with a page-count cap.
+// Attachments are base64 payloads sent inline in the request body. Images
+// become multimodal content parts; text files are inlined into the prompt and
+// work with any model; PDFs are passed to OpenRouter as native file parts and
+// are accepted only by a configured PDF-capable model. PDF page count is
+// verified on both client and server because byte size alone does not bound
+// parsing work or model input cost.
 export const MAX_ATTACHMENT_FILES = 4;
 export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
 export const MAX_ATTACHMENT_BASE64_CHARS = 4_300_000;
 export const MAX_TEXT_ATTACHMENT_TOTAL_BYTES = 128 * 1024;
+export const MAX_PDF_PAGES = 10;
 export const ALLOWED_ATTACHMENT_MIME_TYPES = [
   "image/png",
   "image/jpeg",
   "image/webp",
   "image/gif",
+  "application/pdf",
   "text/plain",
   "text/markdown",
   "text/csv",

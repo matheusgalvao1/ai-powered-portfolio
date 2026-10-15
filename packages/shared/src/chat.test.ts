@@ -58,12 +58,45 @@ describe("ChatRequestSchema", () => {
     }
   });
 
-  it("rejects pdf attachments", () => {
+  it("accepts PDF attachments at the wire layer", () => {
     const result = ChatRequestSchema.safeParse({
       message: "hi",
       sessionId: VALID_UUID,
       attachments: [
         { id: "a1", name: "doc.pdf", mimeType: "application/pdf", data: "aGVsbG8=" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a PDF that exceeds the per-file byte limit", () => {
+    const base64Chars = Math.ceil(((MAX_ATTACHMENT_BYTES + 1) * 4) / 3 / 4) * 4;
+    const result = ChatRequestSchema.safeParse({
+      message: "hi",
+      sessionId: VALID_UUID,
+      attachments: [
+        {
+          id: "a1",
+          name: "large.pdf",
+          mimeType: "application/pdf",
+          data: "A".repeat(base64Chars),
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unsupported document types", () => {
+    const result = ChatRequestSchema.safeParse({
+      message: "hi",
+      sessionId: VALID_UUID,
+      attachments: [
+        {
+          id: "a1",
+          name: "doc.docx",
+          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          data: "aGVsbG8=",
+        },
       ],
     });
     expect(result.success).toBe(false);

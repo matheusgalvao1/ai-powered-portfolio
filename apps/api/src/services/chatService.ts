@@ -5,6 +5,7 @@ import type { PortfolioAgent } from "../agent.js";
 import type { SessionStore } from "../sessionStore.js";
 import type { BudgetLedger } from "../budget.js";
 import type { UserAttachment } from "@portfolio/agent";
+import { PdfAttachmentError, validatePdfAttachments } from "./pdfAttachments.js";
 
 export type ChatService = {
   streamChat(
@@ -45,6 +46,7 @@ export function createChatService({
     // every turn is appended to it. The client only ever sends a sessionId.
     async streamChat({ message, clientKey, sessionId, attachments, signal }, emit) {
       const requestId = randomUUID();
+      let userMessageStored = false;
 
       try {
         if (!(await ledger.hasHeadroom(clientKey))) {
@@ -54,6 +56,29 @@ export function createChatService({
             message: BUDGET_EXHAUSTED_MESSAGE,
           });
           return;
+        }
+
+        const hasPdf = attachments?.some(
+          (attachment) => attachment.mimeType === "application/pdf",
+        );
+        if (hasPdf && !agent.supportsPdfInput) {
+          emit({
+            type: "error",
+            code: ChatErrorCode.VALIDATION_ERROR,
+            message:
+              "PDF attachments require OPENROUTER_MODEL_ID=~openai/gpt-luna-latest.",
+          });
+          return;
+        }
+
+        try {
+          await validatePdfAttachments(attachments, signal);
+        } catch (error) {
+          if (error instanceof PdfAttachmentError) {
+            emit({ type: "error", code: error.code, message: error.message });
+            return;
+          }
+          throw error;
         }
 
         emit({ type: "start", requestId, sessionId });
@@ -68,6 +93,7 @@ export function createChatService({
                 .join(", ")}]`
             : "";
         await store.appendMessage(sessionId, "user", message + attachmentNote);
+        userMessageStored = true;
 
         const result = await agent.run(
           message,
@@ -102,11 +128,13 @@ export function createChatService({
         emit({ type: "complete" });
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
-          // The client cancelled the turn (stop button or navigation). The
-          // socket is gone, but the marker keeps the transcript consistent
-          // so the next turn tells the model the question was cut off.
+          // The client cancelled the turn (stop button or navigation). Keep
+          // the transcript marker only if the question was already stored;
+          // cancellation during PDF preflight leaves no partial turn behind.
           console.warn(`[chat] request ${requestId} aborted; generation cancelled`);
-          await store.appendMessage(sessionId, "assistant", INTERRUPTED_MARKER);
+          if (userMessageStored) {
+            await store.appendMessage(sessionId, "assistant", INTERRUPTED_MARKER);
+          }
           return;
         }
         console.error(error);

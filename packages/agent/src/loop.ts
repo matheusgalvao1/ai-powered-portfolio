@@ -12,9 +12,9 @@ const EMPTY_RESPONSE_NUDGE =
   "System note: your previous response was empty. Respond to the user's request now by " +
   "writing your complete answer as plain text, with no tool calls.";
 
-// Images become multimodal content parts (they need a vision-capable model);
-// text attachments are inlined into the text part, so they work with any
-// model. PDFs are not accepted at the wire layer (see @portfolio/shared).
+// Images become image_url parts; text attachments are inlined into the text
+// part; PDFs become native OpenRouter file parts. The chat service validates
+// PDF pages and ensures the configured model supports native PDF input.
 function createUserMessage(
   message: string,
   attachments: UserAttachment[],
@@ -32,6 +32,8 @@ function createUserMessage(
       );
     } else if (attachment.mimeType.startsWith("image/")) {
       textParts.push(`\n\n[Attached image: ${attachment.name}]`);
+    } else if (attachment.mimeType === "application/pdf") {
+      textParts.push(`\n\n[Attached PDF: ${attachment.name}]`);
     } else {
       textParts.push(`\n\n[Attached document: ${attachment.name}]`);
     }
@@ -42,6 +44,12 @@ function createUserMessage(
     if (attachment.mimeType.startsWith("image/")) {
       const dataUrl = `data:${attachment.mimeType};base64,${attachment.data}`;
       parts.push({ type: "image_url", image_url: { url: dataUrl } });
+    } else if (attachment.mimeType === "application/pdf") {
+      const dataUrl = `data:application/pdf;base64,${attachment.data}`;
+      parts.push({
+        type: "file",
+        file: { filename: attachment.name, file_data: dataUrl },
+      });
     }
   }
 

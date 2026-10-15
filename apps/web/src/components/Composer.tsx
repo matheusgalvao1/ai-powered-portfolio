@@ -10,11 +10,12 @@ import {
   MAX_MESSAGE_CHARS,
   MAX_TEXT_ATTACHMENT_TOTAL_BYTES,
 } from "@portfolio/shared";
+import { PdfPageLimitError, validatePdfBytes } from "../lib/pdf.js";
 
 type PendingAttachment = ChatAttachment & { dataUrl: string };
 
-// Browsers disagree on MIME types for less common extensions (.md, .csv), so
-// empty file.type falls back to an extension lookup.
+// Browsers disagree on MIME types for less common extensions (.md, .csv, .pdf),
+// so empty or generic file.type values fall back to an extension lookup.
 const EXTENSION_MIME_TYPES: Record<string, string> = {
   txt: "text/plain",
   md: "text/markdown",
@@ -24,14 +25,15 @@ const EXTENSION_MIME_TYPES: Record<string, string> = {
   jpeg: "image/jpeg",
   webp: "image/webp",
   gif: "image/gif",
+  pdf: "application/pdf",
 };
 
 function resolveMimeType(file: File): string | null {
-  if (file.type) {
+  if (file.type && file.type !== "application/octet-stream") {
     return file.type;
   }
   const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
-  return EXTENSION_MIME_TYPES[extension] ?? null;
+  return EXTENSION_MIME_TYPES[extension] ?? (file.type || null);
 }
 
 function readAsDataUrl(file: File): Promise<string> {
@@ -85,6 +87,18 @@ export function Composer({
         error = `You can attach up to ${MAX_ATTACHMENT_FILES} files per message.`;
         break;
       } else {
+        if (mimeType === "application/pdf") {
+          try {
+            await validatePdfBytes(new Uint8Array(await file.arrayBuffer()));
+          } catch (validationError) {
+            error =
+              validationError instanceof PdfPageLimitError
+                ? `${file.name}: ${validationError.message}`
+                : `${file.name} isn't a valid, readable, unencrypted PDF.`;
+            continue;
+          }
+        }
+
         accepted.push({ file, mimeType });
       }
     }
@@ -146,7 +160,7 @@ export function Composer({
     setAttachmentError(null);
   };
 
-  const accept = [...ALLOWED_ATTACHMENT_MIME_TYPES, ".txt", ".md", ".csv"].join(",");
+  const accept = [...ALLOWED_ATTACHMENT_MIME_TYPES, ".txt", ".md", ".csv", ".pdf"].join(",");
 
   return (
     <form className="composer" onSubmit={handleSubmit}>
