@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ToolSpec } from "@portfolio/tools";
-import { createOpenRouterStep } from "./openrouter.js";
+import { createOpenRouterStep, supportsNativePdfInput } from "./openrouter.js";
 
 const TOOL_SPEC: ToolSpec = {
   name: "test_tool",
@@ -177,5 +177,95 @@ describe("createOpenRouterStep", () => {
       type: "image_url",
       image_url: { url: "data:image/png;base64,aGVsbG8=" },
     });
+  });
+
+  it("sends PDF input to GPT Luna using OpenRouter native PDF processing", async () => {
+    let requestBody: string | undefined;
+    const fetchMock = vi.fn(async (_input: unknown, init?: { body?: string }) => {
+      requestBody = init?.body;
+      return responseFor(
+        chunk({ choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] }) +
+          "data: [DONE]\n\n",
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const step = createOpenRouterStep({
+      apiKey: "test-key",
+      modelId: "~openai/gpt-luna-latest",
+      systemPrompt: "Be helpful.",
+      toolSpecs: [],
+    });
+
+    await step({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Summarize this PDF" },
+            {
+              type: "file",
+              file: {
+                filename: "report.pdf",
+                file_data: "data:application/pdf;base64,JVBERi0x",
+              },
+            },
+          ],
+        },
+      ],
+      onToken: () => {},
+      onThinking: () => {},
+    });
+
+    const body = JSON.parse(requestBody ?? "{}") as {
+      plugins: Array<{ id: string; pdf: { engine: string } }>;
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    expect(body.plugins).toEqual([{ id: "file-parser", pdf: { engine: "native" } }]);
+    expect(body.messages[1]?.content).toEqual([
+      { type: "text", text: "Summarize this PDF" },
+      {
+        type: "file",
+        file: {
+          filename: "report.pdf",
+          file_data: "data:application/pdf;base64,JVBERi0x",
+        },
+      },
+    ]);
+  });
+
+  it("does not send native PDF parts to unsupported models", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const step = createOpenRouterStep({
+      apiKey: "test-key",
+      modelId: "z-ai/glm-5",
+      systemPrompt: "Be helpful.",
+      toolSpecs: [],
+    });
+
+    await expect(
+      step({
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "file",
+                file: { filename: "report.pdf", file_data: "data:application/pdf;base64,JVBERi0x" },
+              },
+            ],
+          },
+        ],
+        onToken: () => {},
+        onThinking: () => {},
+      }),
+    ).rejects.toThrow("does not support native PDF input");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("identifies the explicitly PDF-capable OpenRouter model", () => {
+    expect(supportsNativePdfInput("~openai/gpt-luna-latest")).toBe(true);
+    expect(supportsNativePdfInput("deepseek/deepseek-v4-flash-0731")).toBe(false);
   });
 });

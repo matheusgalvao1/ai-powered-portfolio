@@ -2,6 +2,7 @@ import {
   createOpenRouterStep,
   createInitialState,
   runAgentLoop,
+  supportsNativePdfInput,
   type AgentState,
   type EmitFn,
   type UserAttachment,
@@ -26,6 +27,7 @@ type PortfolioAgentOptions = {
 };
 
 export type PortfolioAgent = {
+  supportsPdfInput: boolean;
   run(
     message: string,
     conversation: ConversationMessage[],
@@ -52,6 +54,7 @@ export function createPortfolioAgent(options: PortfolioAgentOptions): PortfolioA
   });
 
   return {
+    supportsPdfInput: supportsNativePdfInput(options.modelId),
     run(message, conversation, attachments, emit, signal) {
       return runAgentLoop(
         createInitialState(message, conversation, attachments),

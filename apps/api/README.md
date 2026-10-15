@@ -43,7 +43,7 @@ Body:
   message: string;          // hard-capped at MAX_MESSAGE_CHARS (8,000)
   sessionId: string;        // client-generated UUID; the server keeps the
                             // transcript and the model's context under it
-  attachments?: Array<{ id, name, mimeType, data }>;  // base64; images and text only
+  attachments?: Array<{ id, name, mimeType, data }>;  // base64; images, text, and bounded PDFs
 }
 ```
 
@@ -59,6 +59,8 @@ Responds as `text/event-stream` (SSE), one JSON object per `data:` frame:
 ```
 
 The conversation lives **server-side** in the configured session store: the client only sends its session id, and the server loads the model-facing history (most recent entries, clamped) and appends each turn — including markers when a turn is stopped or fails. Development uses SQLite; production uses Neon Postgres. Aborted requests also abort the upstream model call.
+
+PDF attachments are limited to 3 MiB and 10 pages each. The browser checks the page limit for user feedback; the API independently validates the PDF in a short-lived worker before storing the turn. PDFs are sent as native file parts to OpenRouter and require `OPENROUTER_MODEL_ID=~openai/gpt-luna-latest`; other configured models receive a clear attachment error. Raw PDF data is not stored in the transcript.
 
 Non-streaming error responses (400 validation, 429 rate limit/concurrency) use the PRD 15.2 envelope: `{ error: { code, message, requestId } }`.
 

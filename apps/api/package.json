@@ -16,6 +16,7 @@
     "@portfolio/tools": "workspace:*",
     "express": "^4.21.2",
     "jose": "^6.2.12",
+    "pdf-lib": "1.17.1",
     "pg": "^8.23.1"
   },
   "devDependencies": {

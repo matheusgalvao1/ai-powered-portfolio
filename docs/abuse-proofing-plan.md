@@ -14,10 +14,13 @@ stop curl or other non-browser clients.
 
 ## Deployed Baseline
 
-- **Request size:** new message max 8,000 characters. JSON body max 20 MB to
-  allow inline images.
+- **Request size:** new message max 8,000 characters. `/chat` JSON body max 20
+  MB to allow inline images and PDFs; API-key, rate-limit, and concurrency
+  checks run before body parsing.
 - **Attachments:** up to four files, each max 3 MiB; text attachments max 128
-  KiB combined. PDFs are rejected. Images and text files are accepted.
+  KiB combined. PDFs are accepted only with the native-PDF-capable
+  `~openai/gpt-luna-latest` model and are limited to 10 pages each by both the
+  browser and an API-side worker. The API does not store PDF bytes.
 - **Context:** conversation is server-owned in Neon Postgres in production
   (SQLite locally). The model receives up to the latest 24 messages, each
   clamped to 16,000 characters. The client sends only `sessionId`, message,
@@ -103,8 +106,9 @@ repository/readme retrieval:
   model's remaining context window can accept. If one result alone is too large,
   summarize or select relevant chunks before the next model call; compaction
   cannot make an oversized single request safe retroactively.
-- [ ] Cache GitHub/API fetches where freshness permits. Add PDF support only
-  with a server-verified page limit (proposed maximum 10 pages).
+- [ ] Cache GitHub/API fetches where freshness permits.
+- [x] Add bounded PDF support: require a PDF-capable model, validate the PDF
+  and 10-page limit on the server, and cap size and parser concurrency/time.
 
 ## Phase 4: Scale and Analytics
 
@@ -126,6 +130,8 @@ When continuing this work, verify at least:
 
 - [ ] Oversized message, text attachment, file count, and JSON-body requests
   are rejected before the model is called.
+- [ ] Invalid, encrypted, over-size, over-page-limit, or unsupported-model PDF
+  requests are rejected before the model is called or a transcript turn is stored.
 - [ ] Both production origins pass CORS preflight; an unrelated origin does
   not receive `Access-Control-Allow-Origin`.
 - [ ] Rate and concurrency limits return 429 at their configured thresholds.
