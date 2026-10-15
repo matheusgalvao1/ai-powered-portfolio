@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, FormEvent, KeyboardEvent } from "react";
 import type { ChatAttachment } from "@portfolio/shared";
+import { resizeComposerInput, shouldSubmitOnEnter } from "./composerUtils.js";
 import {
   ALLOWED_ATTACHMENT_MIME_TYPES,
   isAllowedAttachmentType,
@@ -51,7 +52,7 @@ export function Composer({
   onSubmit: (message: string, attachments: ChatAttachment[]) => void;
   onStop: () => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [hasText, setHasText] = useState(false);
   const [pending, setPending] = useState<PendingAttachment[]>([]);
@@ -137,6 +138,8 @@ export function Composer({
     onSubmit(value, attachments);
     if (inputRef.current) {
       inputRef.current.value = "";
+      resizeComposerInput(inputRef.current);
+      inputRef.current.scrollTop = 0;
       setHasText(false);
     }
     setPending([]);
@@ -209,16 +212,39 @@ export function Composer({
             event.target.value = "";
           }}
         />
-        <input
+        <textarea
           ref={inputRef}
           className="composer-input"
-          type="text"
           placeholder="Ask about Matheus..."
+          aria-label="Message"
           autoComplete="off"
           autoFocus
+          rows={1}
+          enterKeyHint="send"
           maxLength={MAX_MESSAGE_CHARS}
           disabled={disabled}
-          onInput={(event) => setHasText(event.currentTarget.value.trim().length > 0)}
+          onInput={(event) => {
+            setHasText(event.currentTarget.value.trim().length > 0);
+            resizeComposerInput(event.currentTarget);
+          }}
+          onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
+            if (
+              !shouldSubmitOnEnter({
+                key: event.key,
+                shiftKey: event.shiftKey,
+                ctrlKey: event.ctrlKey,
+                altKey: event.altKey,
+                metaKey: event.metaKey,
+                isComposing:
+                  event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229,
+              })
+            ) {
+              return;
+            }
+
+            event.preventDefault();
+            event.currentTarget.form?.requestSubmit();
+          }}
         />
         {disabled ? (
           <button
