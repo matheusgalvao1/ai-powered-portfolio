@@ -7,7 +7,6 @@ import {
   MAX_ATTACHMENT_BYTES,
   MAX_ATTACHMENT_FILES,
   MAX_MESSAGE_CHARS,
-  MAX_PDF_PAGES,
   MAX_TEXT_ATTACHMENT_TOTAL_BYTES,
 } from "@portfolio/shared";
 import { PdfPageLimitError, validatePdfBytes } from "../lib/pdf.js";
@@ -267,7 +266,7 @@ export function Composer({
         )}
       </div>
       <p className="composer-privacy">
-        Chats are stored to improve this assistant. PDFs may be up to {maxMegabytes} MB and {MAX_PDF_PAGES} pages; their contents are sent to the configured model but aren’t stored in the transcript.
+        Chats are stored to improve this assistant.
       </p>
     </form>
   );
